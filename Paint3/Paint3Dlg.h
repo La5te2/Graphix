@@ -1,0 +1,55 @@
+﻿
+// Paint3Dlg.h: 头文件
+//
+
+#pragma once
+#include "std.h"
+using namespace std;
+
+// CPaint3Dlg 对话框
+class CPaint3Dlg : public CDialogEx
+{
+// 构造
+public:
+	CPaint3Dlg(CWnd* pParent = nullptr);	// 标准构造函数
+
+// 对话框数据
+#ifdef AFX_DESIGN_TIME
+	enum { IDD = IDD_PAINT3_DIALOG };
+#endif
+
+	protected:
+	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV 支持
+
+
+// 实现
+protected:
+	HICON m_hIcon;
+
+	// 生成的消息映射函数
+	virtual BOOL OnInitDialog();
+	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
+	afx_msg void OnPaint();
+	afx_msg HCURSOR OnQueryDragIcon();
+	DECLARE_MESSAGE_MAP()
+
+	COLORREF LineColor = RGB(255, 0, 0);
+	COLORREF ShapeColor = RGB(0, 255, 0);
+	
+	bool IsFill = false; // false不填充 true填充
+public:
+	afx_msg void OnBnClickedButton1();
+	afx_msg void OnBnClickedButton2();
+	int LineWidth;
+	afx_msg void OnEnChangeEdit1();
+	int LineType;
+	afx_msg void OnBnClickedRadio1();
+	afx_msg void OnBnClickedRadio2();
+	CComboBox m_fill;
+	afx_msg void OnCbnSelchangeCombo1();
+	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
+	vector<pair<CPoint, CPoint>> Lines; // 存储线条的起点和终点
+	CPoint startPoint; // 线条起点
+	CPoint endPoint;   // 线条终点
+	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
+};
