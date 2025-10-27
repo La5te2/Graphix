@@ -52,4 +52,7 @@ public:
 	CPoint startPoint; // 线条起点
 	CPoint endPoint;   // 线条终点
 	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
+	bool isDrawing = false;
+	CPoint lastPoint;
+	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
 };

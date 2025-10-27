@@ -6,7 +6,7 @@
 ## 1.直线算法
 ### 1.1 DDA
 ``` C++
-void Paint3::OnDDA()
+void CPaint3Dlg::OnDDA()
 {
 	// TODO: 在此添加命令处理程序代码
 	dlg_line dlg;
@@ -45,7 +45,7 @@ void Paint3::OnDDA()
 ### 1.2 中点法
 ``` C++
 
-void Paint3::OnMidpointline()
+void CPaint3Dlg::OnMidpointline()
 {
 	// TODO: 在此添加命令处理程序代码
 	dlg_line dlg;
@@ -79,7 +79,7 @@ void Paint3::OnMidpointline()
 ```
 ### 1.3Bresenham法
 ``` C++
-void Paint3::OnBresenhamline_1(int x0, int y0, int x1, int y1)
+void CPaint3Dlg::OnBresenhamline_1(int x0, int y0, int x1, int y1)
 {
 	// TODO: 在此处添加实现代码.
 	CDC* pDC = GetDC();
@@ -141,7 +141,7 @@ void Paint3::OnBresenhamline_1(int x0, int y0, int x1, int y1)
 	}
 }
 
-void Paint3::OnBresenhamline()
+void CPaint3Dlg::OnBresenhamline()
 {
 	CDC* pDC = GetDC();
 	state = 1;
@@ -151,7 +151,7 @@ void Paint3::OnBresenhamline()
 ## 2.圆
 ### 2.1中点法
 ``` C++
-void Paint3::OnMidpointcircle()
+void CPaint3Dlg::OnMidpointcircle()
 {
 	// TODO: 在此添加命令处理程序代码
 	dlg_circle dlg;
@@ -201,7 +201,7 @@ void Paint3::OnMidpointcircle()
 ```
 ### 1.2 Bresenham法
 ``` C++
-void Paint3::Bresenhamcircle_1(int x0, int y0, int r)
+void CPaint3Dlg::Bresenhamcircle_1(int x0, int y0, int r)
 {
 	// TODO: 在此处添加实现代码.
 	CDC *pDC = GetDC();
@@ -232,7 +232,7 @@ void Paint3::Bresenhamcircle_1(int x0, int y0, int r)
 		x++;
 	}
 }
-void Paint3::OnBresenhamcircle()
+void CPaint3Dlg::OnBresenhamcircle()
 {
 	// TODO: 在此添加命令处理程序代码
 	CDC *pDC = GetDC();
@@ -244,7 +244,7 @@ void Paint3::OnBresenhamcircle()
 ```
 ## 3.椭圆(Bresenhame)
 ``` C++
-void Paint3::OnBresenhamellipse()
+void CPaint3Dlg::OnBresenhamellipse()
 {
 	// TODO: 在此添加命令处理程序代码
 	CRect rect;
@@ -305,7 +305,7 @@ void Paint3::OnBresenhamellipse()
 ## 4.直线扫描
 ``` C++
 //直线扫描
-void Paint3::OnPolygonscan()
+void CPaint3Dlg::OnPolygonscan()
 {
 	// TODO: 在此添加命令处理程序代码
 	CDC* pDC = GetDC();
@@ -431,7 +431,7 @@ void Paint3::OnPolygonscan()
 ### 5.1 四领域
 ``` C++
 //四领域
-void Paint3::OnPolygonfloodfill4()
+void CPaint3Dlg::OnPolygonfloodfill4()
 {
 	// TODO: 在此添加命令处理程序代码
 	CClientDC dc1(this);
@@ -449,7 +449,7 @@ void Paint3::OnPolygonfloodfill4()
 
 	FloodFill4(20, 20, 200, 100);
 }
-void Paint3::FloodFill4(int x, int y, int oldColor, int newColor)
+void CPaint3Dlg::FloodFill4(int x, int y, int oldColor, int newColor)
 {
 	CClientDC dc(this);
 	
@@ -470,7 +470,7 @@ void Paint3::FloodFill4(int x, int y, int oldColor, int newColor)
 ### 5.1八领域
 ``` C++
 //八领域
-void Paint3::OnPolygonfloodfill8()
+void CPaint3Dlg::OnPolygonfloodfill8()
 {
 	// TODO: 在此添加命令处理程序代码
 	CClientDC dc1(this);
@@ -488,7 +488,7 @@ void Paint3::OnPolygonfloodfill8()
 }
 
 
-void Paint3::FloodFill8(int x, int y, int oldColor, int newColor)
+void CPaint3Dlg::FloodFill8(int x, int y, int oldColor, int newColor)
 {
 	CClientDC dc(this);
 	int color;
@@ -513,7 +513,7 @@ void Paint3::FloodFill8(int x, int y, int oldColor, int newColor)
 ### 6.1 平移
 ``` C++
 //平移
-void Paint3::Onpingyi2()
+void CPaint3Dlg::Onpingyi2()
 {
 	// TODO: 在此添加命令处理程序代码
 	CClientDC dc(this);
@@ -545,7 +545,7 @@ void Paint3::Onpingyi2()
 
 ``` C++
 //旋转
-void Paint3::Onxuanzhaun2()
+void CPaint3Dlg::Onxuanzhaun2()
 {
 	// TODO: 在此添加命令处理程序代码
 	CClientDC dc(this);
@@ -580,7 +580,7 @@ void Paint3::Onxuanzhaun2()
 
 ``` C++
 //错切
-void Paint3::Oncuoqie2()
+void CPaint3Dlg::Oncuoqie2()
 {
 	// TODO: 在此添加命令处理程序代码
 	CClientDC dc(this);
@@ -614,7 +614,7 @@ void Paint3::Oncuoqie2()
 
 ``` C++
 //比例
-void Paint3::Onbili2()
+void CPaint3Dlg::Onbili2()
 {
 	// TODO: 在此添加命令处理程序代码
 	CClientDC dc(this);
@@ -647,7 +647,7 @@ void Paint3::Onbili2()
 
 ``` C++
 //对称
-void Paint3::Onduichen2()
+void CPaint3Dlg::Onduichen2()
 {
 	// TODO: 在此添加命令处理程序代码
 	CClientDC dc(this);
@@ -680,7 +680,7 @@ void Paint3::Onduichen2()
 
 ``` C++
 //直线cohen-sutherland法
-unsigned int Paint3::EnCode(CPoint point)
+unsigned int CPaint3Dlg::EnCode(CPoint point)
 {
 	#define D0 1 //0001
 	#define D1 2 //0010
@@ -699,7 +699,7 @@ unsigned int Paint3::EnCode(CPoint point)
 	return C1;
 }
 
-void Paint3::Oncs_line()
+void CPaint3Dlg::Oncs_line()
 {
 	// TODO: 在此添加命令处理程序代码
 	CDC* pDC = GetDC();
@@ -721,7 +721,7 @@ void Paint3::Oncs_line()
 	
 }
 
-void Paint3::CohenSutherland(CPoint p1, CPoint p2, CDC * pdc)
+void CPaint3Dlg::CohenSutherland(CPoint p1, CPoint p2, CDC * pdc)
 {
 		#define D0 1 //0001
 		#define D1 2 //0010
@@ -784,7 +784,7 @@ void Paint3::CohenSutherland(CPoint p1, CPoint p2, CDC * pdc)
 
 ``` C++
 //多边形weiler-atherton法
-void Paint3::Onwa_duo()
+void CPaint3Dlg::Onwa_duo()
 {
 	// TODO: 在此添加命令处理程序代码
 	int x0, y0, x1, y1;
@@ -803,7 +803,7 @@ void Paint3::Onwa_duo()
 
 }
 
-void Paint3::cut_line(int x0, int x1, int y0, int y1)
+void CPaint3Dlg::cut_line(int x0, int x1, int y0, int y1)
 {
 	// TODO: 在此处添加实现代码.
 	#define CLIP_CODE_C 0x0000  
@@ -871,7 +871,7 @@ void Paint3::cut_line(int x0, int x1, int y0, int y1)
 
 ``` C++
 //平移
-void Paint3::Onpingyi3()
+void CPaint3Dlg::Onpingyi3()
 {
 	// TODO: 在此添加命令处理程序代码
 	CClientDC dc(this);
@@ -918,7 +918,7 @@ void Paint3::Onpingyi3()
 
 ``` C++
 //旋转
-void Paint3::Onxuanzhuan3()
+void CPaint3Dlg::Onxuanzhuan3()
 {
 	// TODO: 在此添加命令处理程序代码
 	CClientDC dc(this);
@@ -949,7 +949,7 @@ void Paint3::Onxuanzhuan3()
 
 ``` C++
 //对称
-void Paint3::Onduichen3()
+void CPaint3Dlg::Onduichen3()
 {
 	// TODO: 在此添加命令处理程序代码
 	CClientDC dc(this);
@@ -998,7 +998,7 @@ void Paint3::Onduichen3()
 
 ``` C++
 //比例
-void Paint3::Onbili3()
+void CPaint3Dlg::Onbili3()
 {
 	// TODO: 在此添加命令处理程序代码
 	CClientDC dc(this);
@@ -1045,7 +1045,7 @@ void Paint3::Onbili3()
 
 ``` C++
 //错切
-void Paint3::Oncuoqie3()
+void CPaint3Dlg::Oncuoqie3()
 {
 	// TODO: 在此添加命令处理程序代码
 	CClientDC dc(this);
@@ -1085,7 +1085,7 @@ void Paint3::Oncuoqie3()
 
 ``` C++
 //三视图
-void Paint3::Onsanshitu()
+void CPaint3Dlg::Onsanshitu()
 {
 	// TODO: 在此添加命令处理程序代码
 	CDC* pDC = GetDC();
@@ -1314,7 +1314,7 @@ void Paint3::Onsanshitu()
 
 ``` C++
 //重定义坐标轴
-void Paint3::Axis(CDC * pDC, CRect rect)
+void CPaint3Dlg::Axis(CDC * pDC, CRect rect)
 {
 	// TODO: 在此处添加实现代码.
 	// 画坐标轴
@@ -1334,7 +1334,7 @@ void Paint3::Axis(CDC * pDC, CRect rect)
 
 
 // 清屏
-void Paint3::OnClean()
+void CPaint3Dlg::OnClean()
 {
 	//  清屏
 	RedrawWindow();
@@ -1343,7 +1343,7 @@ void Paint3::OnClean()
 }
 
 //起点赋值
-void Paint3::OnLButtonDown(UINT nFlags, CPoint point)
+void CPaint3Dlg::OnLButtonDown(UINT nFlags, CPoint point)
 {
 	// TODO: 在此添加消息处理程序代码和/或调用默认值
 	CDC * pDC = GetDC();
@@ -1354,7 +1354,7 @@ void Paint3::OnLButtonDown(UINT nFlags, CPoint point)
 }
 
 //终点赋值
-void Paint3::OnLButtonUp(UINT nFlags, CPoint point)
+void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 {
 	CView::OnLButtonUp(nFlags, point);
 	E_x = point.x;
@@ -1384,7 +1384,7 @@ void Paint3::OnLButtonUp(UINT nFlags, CPoint point)
 二维几何变换-五种基本变换
 */
 //平移
-void Paint3::Onpingyi2()
+void CPaint3Dlg::Onpingyi2()
 {
 	// TODO: 在此添加命令处理程序代码
 	CClientDC dc(this);
@@ -1436,7 +1436,7 @@ void Paint3::Onpingyi2()
 }
 
 //旋转
-void Paint3::Onxuanzhaun2()
+void CPaint3Dlg::Onxuanzhaun2()
 {
 	// TODO: 在此添加命令处理程序代码
 	CClientDC dc(this);
@@ -1487,7 +1487,7 @@ void Paint3::Onxuanzhaun2()
 }
 
 //错切
-void Paint3::Oncuoqie2()
+void CPaint3Dlg::Oncuoqie2()
 {
 	// TODO: 在此添加命令处理程序代码
 	CClientDC dc(this);
@@ -1536,7 +1536,7 @@ void Paint3::Oncuoqie2()
 
 
 //比例
-void Paint3::Onbili2()
+void CPaint3Dlg::Onbili2()
 {
 	// TODO: 在此添加命令处理程序代码
 	CClientDC dc(this);
@@ -1587,7 +1587,7 @@ void Paint3::Onbili2()
 }
 
 //对称
-void Paint3::Onduichen2()
+void CPaint3Dlg::Onduichen2()
 {
 	// TODO: 在此添加命令处理程序代码
 	CClientDC dc(this);
