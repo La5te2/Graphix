@@ -65,6 +65,7 @@ void CPaint3Dlg::DoDataExchange(CDataExchange* pDX)
 	DDV_MinMaxInt(pDX, LineWidth, 0, 20);
 	DDX_Radio(pDX, IDC_RADIO1, LineType);
 	DDX_Control(pDX, IDC_COMBO1, m_fill);
+	DDX_Control(pDX, IDC_COMBO2, m_mode);
 }
 
 BEGIN_MESSAGE_MAP(CPaint3Dlg, CDialogEx)
@@ -80,6 +81,7 @@ BEGIN_MESSAGE_MAP(CPaint3Dlg, CDialogEx)
 	ON_WM_LBUTTONDOWN()
 	ON_WM_LBUTTONUP()
 	ON_WM_MOUSEMOVE()
+	ON_CBN_SELCHANGE(IDC_COMBO2, &CPaint3Dlg::OnCbnSelchangeCombo2)
 END_MESSAGE_MAP()
 
 
@@ -122,7 +124,10 @@ BOOL CPaint3Dlg::OnInitDialog()
 	m_fill.AddString(_T("Filled"));
 	m_fill.AddString(_T("Not Filled"));
 	m_fill.SetCurSel(0);
-
+	m_mode.AddString(_T("Pen"));
+	m_mode.AddString(_T("Line"));
+	m_mode.AddString(_T("Circle"));
+	m_mode.SetCurSel(0);
 	UpdateData(FALSE);
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -215,61 +220,144 @@ void CPaint3Dlg::OnCbnSelchangeCombo1()
 	int sel = m_fill.GetCurSel();
 	IsFill = (sel == 0) ? true : false;
 }
+void CPaint3Dlg::OnCbnSelchangeCombo2()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	// m_mode.AddString(_T("Pen"));
+	// m_mode.AddString(_T("Line"));
+	// m_mode.AddString(_T("Circle"));
+
+	int sel = m_mode.GetCurSel();
+	Mode = sel;
+}
+
 
 //void CPaint3Dlg::OnLButtonDown(UINT nFlags, CPoint point)
 //{
-//	CClientDC dc(this);
-//	dc.SetPixel(point.x, point.y, LineColor);
-//	startPoint = point;
+//	isDrawing = true;
+//	startPoint = lastPoint = point;
 //	CDialogEx::OnLButtonDown(nFlags, point);
 //}
+//void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
+//{
+//	if (isDrawing) // 仅在绘图时处理鼠标移动
+//	{
+//		CClientDC dc(this);
 //
+//		// XOR绘图模式用于临时线段显示
+//		dc.SetROP2(R2_NOTXORPEN);
+//
+//		CPen pen(PS_SOLID, 1, LineColor);
+//		CPen* oldPen = dc.SelectObject(&pen);
+//
+//		// 擦除上一次绘制的线段
+//		dc.MoveTo(startPoint);
+//		dc.LineTo(lastPoint);
+//
+//		// 绘制当前线段
+//		dc.MoveTo(startPoint);
+//		dc.LineTo(point);
+//
+//		dc.SelectObject(oldPen);
+//		lastPoint = point; // 更新终点
+//	}
+//	CDialogEx::OnMouseMove(nFlags, point);
+//}
 //void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 //{
-//	CClientDC dc(this);
-//	dc.SetPixel(point.x, point.y, LineColor);
-//	endPoint = point;
-//	Lines.push_back(make_pair(startPoint, endPoint));
-//	int penStyle = LineType ? PS_DASH : PS_SOLID;
-//	LOGBRUSH logBrush;
-//	logBrush.lbStyle = BS_SOLID;
-//	logBrush.lbColor = LineColor;
-//	CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, LineWidth, &logBrush); // 选择画笔到设备上下文
-//	CPen* pOldPen = dc.SelectObject(&pen);
-//	dc.MoveTo(startPoint.x, startPoint.y);
-//	dc.LineTo(endPoint.x, endPoint.y);
+//	if (isDrawing)
+//	{
+//		isDrawing = false;
+//
+//		CClientDC dc(this);
+//		dc.SetROP2(R2_COPYPEN); // 恢复正常模式
+//
+//		endPoint = point;
+//		Lines.push_back(make_pair(startPoint, endPoint));
+//
+//		int penStyle = LineType ? PS_DASH : PS_SOLID;
+//		LOGBRUSH logBrush = { BS_SOLID, LineColor, 0 };
+//		CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, LineWidth, &logBrush);
+//		CPen* oldPen = dc.SelectObject(&pen);
+//
+//		dc.MoveTo(startPoint);
+//		dc.LineTo(endPoint);
+//
+//		dc.SelectObject(oldPen);
+//	}
+//
 //	CDialogEx::OnLButtonUp(nFlags, point);
 //}
+
 void CPaint3Dlg::OnLButtonDown(UINT nFlags, CPoint point)
 {
 	isDrawing = true;
 	startPoint = lastPoint = point;
 	CDialogEx::OnLButtonDown(nFlags, point);
+	if (Mode == 0)
+	{
+		vector<CPoint> newStroke;
+		newStroke.push_back(point);
+		Pens.push_back(newStroke);
+		PenColors.push_back(LineColor);
+	}
 }
 void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 {
-	if (isDrawing) // 仅在绘图时处理鼠标移动
+	if (isDrawing)
 	{
 		CClientDC dc(this);
-
-		// XOR绘图模式用于临时线段显示
 		dc.SetROP2(R2_NOTXORPEN);
 
 		CPen pen(PS_SOLID, 1, LineColor);
 		CPen* oldPen = dc.SelectObject(&pen);
 
-		// 擦除上一次绘制的线段
-		dc.MoveTo(startPoint);
-		dc.LineTo(lastPoint);
+		if (Mode == 0) 
+		{
+			Pens.back().push_back(point);
+			dc.MoveTo(lastPoint);
+			dc.LineTo(point);
+		}
 
-		// 绘制当前线段
-		dc.MoveTo(startPoint);
-		dc.LineTo(point);
+		else if (Mode == 1) // Line
+		{
+			dc.MoveTo(startPoint);
+			dc.LineTo(lastPoint);
+
+			dc.MoveTo(startPoint);
+			dc.LineTo(point);
+		}
+		else if (Mode == 2)
+		{
+			// 擦除旧图形
+			if (hasLastDrawRect)
+				dc.Ellipse(lastDrawRect);
+
+			// 构造新的矩形
+			CRect newRect(startPoint, point);
+			newRect.NormalizeRect();
+
+			// Shift 正圆支持
+			if (GetKeyState(VK_SHIFT) & 0x8000)
+			{
+				int len = min(newRect.Width(), newRect.Height());
+				if (point.x < startPoint.x) newRect.left = startPoint.x - len;
+				else newRect.right = startPoint.x + len;
+				if (point.y < startPoint.y) newRect.top = startPoint.y - len;
+				else newRect.bottom = startPoint.y + len;
+			}
+
+			// 绘制新的临时图形
+			dc.Ellipse(newRect);
+
+			// 保存本次真实绘制形状
+			lastDrawRect = newRect;
+			hasLastDrawRect = true;
+		}
 
 		dc.SelectObject(oldPen);
-		lastPoint = point; // 更新终点
+		lastPoint = point;
 	}
-	CDialogEx::OnMouseMove(nFlags, point);
 }
 void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 {
@@ -278,18 +366,80 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 		isDrawing = false;
 
 		CClientDC dc(this);
-		dc.SetROP2(R2_COPYPEN); // 恢复正常模式
+		dc.SetROP2(R2_COPYPEN);
 
 		endPoint = point;
-		Lines.push_back(make_pair(startPoint, endPoint));
 
 		int penStyle = LineType ? PS_DASH : PS_SOLID;
 		LOGBRUSH logBrush = { BS_SOLID, LineColor, 0 };
 		CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, LineWidth, &logBrush);
 		CPen* oldPen = dc.SelectObject(&pen);
 
-		dc.MoveTo(startPoint);
-		dc.LineTo(endPoint);
+		if (Mode == 0) // Pen
+		{
+			Pens.back().push_back(point);
+			dc.MoveTo(lastPoint);
+			dc.LineTo(point);
+		}
+		else if (Mode == 1) // Line
+		{
+			Lines.push_back(make_pair(startPoint, endPoint));
+			dc.MoveTo(startPoint);
+			dc.LineTo(endPoint);
+		}
+		//else if (Mode == 2)
+		//{
+		//	CRect rect(startPoint, endPoint);
+		//	rect.NormalizeRect();
+		//	hasLastDrawRect = false;
+		//	if (GetKeyState(VK_SHIFT) & 0x8000) // Shift正圆
+		//	{
+		//		int len = min(rect.Width(), rect.Height());
+		//		if (endPoint.x < startPoint.x) rect.left = startPoint.x - len;
+		//		else rect.right = startPoint.x + len;
+		//		if (endPoint.y < startPoint.y) rect.top = startPoint.y - len;
+		//		else rect.bottom = startPoint.y + len;
+		//	}
+
+		//	Ellipses.push_back(rect);
+		//	dc.Ellipse(rect);
+		//}
+		else if (Mode == 2)
+		{
+			CRect rect(startPoint, endPoint);
+			rect.NormalizeRect();
+			hasLastDrawRect = false;
+
+			if (GetKeyState(VK_SHIFT) & 0x8000)
+			{
+				int len = min(rect.Width(), rect.Height());
+				if (endPoint.x < startPoint.x) rect.left = startPoint.x - len;
+				else rect.right = startPoint.x + len;
+				if (endPoint.y < startPoint.y) rect.top = startPoint.y - len;
+				else rect.bottom = startPoint.y + len;
+			}
+
+			Ellipses.push_back(rect);
+
+			if (IsFill)
+			{
+				CBrush brush(ShapeColor);
+				CBrush* oldBrush = dc.SelectObject(&brush);
+				dc.Ellipse(rect);
+				dc.SelectObject(oldBrush);
+			}
+			else
+			{
+				/*CBrush backBrush(BackgroundColor);
+				CBrush* oldBrush = dc.SelectObject(&backBrush);
+				dc.Ellipse(rect);
+				dc.SelectObject(oldBrush);*/
+				CBrush* pNullBrush = CBrush::FromHandle((HBRUSH)GetStockObject(NULL_BRUSH));
+				CBrush* oldBrush = dc.SelectObject(pNullBrush);
+				dc.Ellipse(rect);
+				dc.SelectObject(oldBrush);
+			}
+		}
 
 		dc.SelectObject(oldPen);
 	}

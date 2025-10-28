@@ -37,6 +37,7 @@ protected:
 	COLORREF ShapeColor = RGB(0, 255, 0);
 	
 	bool IsFill = false; // false不填充 true填充
+	int Mode = 0; // 0画笔 1直线 2圆
 public:
 	afx_msg void OnBnClickedButton1();
 	afx_msg void OnBnClickedButton2();
@@ -55,4 +56,12 @@ public:
 	bool isDrawing = false;
 	CPoint lastPoint;
 	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
+	afx_msg void OnCbnSelchangeCombo2();
+	CComboBox m_mode;
+	std::vector<CRect> Ellipses;
+	CRect lastDrawRect;
+	bool hasLastDrawRect = false;
+	vector<vector<CPoint>> Pens; // 保存自由绘制的轨迹
+	vector<COLORREF> PenColors;  // 每段画笔轨迹对应颜色
+	COLORREF BackgroundColor = RGB(255, 255, 255); // 根据您实际背景而定
 };
