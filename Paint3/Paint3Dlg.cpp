@@ -66,6 +66,7 @@ void CPaint3Dlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Radio(pDX, IDC_RADIO1, LineType);
 	DDX_Control(pDX, IDC_COMBO1, m_fill);
 	DDX_Control(pDX, IDC_COMBO2, m_mode);
+	DDX_Control(pDX, IDC_COMBO3, m_algorithm);
 }
 
 BEGIN_MESSAGE_MAP(CPaint3Dlg, CDialogEx)
@@ -82,6 +83,7 @@ BEGIN_MESSAGE_MAP(CPaint3Dlg, CDialogEx)
 	ON_WM_LBUTTONUP()
 	ON_WM_MOUSEMOVE()
 	ON_CBN_SELCHANGE(IDC_COMBO2, &CPaint3Dlg::OnCbnSelchangeCombo2)
+	ON_CBN_SELCHANGE(IDC_COMBO3, &CPaint3Dlg::OnCbnSelchangeCombo3)
 END_MESSAGE_MAP()
 
 
@@ -123,11 +125,19 @@ BOOL CPaint3Dlg::OnInitDialog()
 	LineWidth = 5;
 	m_fill.AddString(_T("Filled"));
 	m_fill.AddString(_T("Not Filled"));
-	m_fill.SetCurSel(0);
+	m_fill.SetCurSel(1);
 	m_mode.AddString(_T("Pen"));
 	m_mode.AddString(_T("Line"));
 	m_mode.AddString(_T("Circle"));
 	m_mode.SetCurSel(0);
+	m_algorithm.AddString(_T("Default Line"));
+	m_algorithm.AddString(_T("DDA Line Algorithm"));
+	m_algorithm.AddString(_T("Midpoint Line Algorithm"));
+	m_algorithm.AddString(_T("Bresenham Line Algorithm"));
+	m_algorithm.AddString(_T("Default Circle"));
+	m_algorithm.AddString(_T("Midpoint Circle Algorithm"));
+	m_algorithm.AddString(_T("Bresenham Circle Algorithm"));
+	m_algorithm.SetCurSel(0);
 	UpdateData(FALSE);
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -222,72 +232,159 @@ void CPaint3Dlg::OnCbnSelchangeCombo1()
 }
 void CPaint3Dlg::OnCbnSelchangeCombo2()
 {
-	// TODO: 在此添加控件通知处理程序代码
-	// m_mode.AddString(_T("Pen"));
-	// m_mode.AddString(_T("Line"));
-	// m_mode.AddString(_T("Circle"));
-
 	int sel = m_mode.GetCurSel();
 	Mode = sel;
 }
 
+void CPaint3Dlg::DrawLineDDA(CPoint p1, CPoint p2, CDC& dc)
+{
+	double dx = p2.x - p1.x;
+	double dy = p2.y - p1.y;
+	double steps = fabs(dx) > fabs(dy) ? fabs(dx) : fabs(dy);
+	double xInc = dx / steps;
+	double yInc = dy / steps;
+	double x = p1.x;
+	double y = p1.y;
+	int dashLength = 12; // 虚线段长度
+	int gapLength = 6; // 虚线间隔长度
+	for (int i = 0; i <= steps; ++i)
+	{
+		bool drawPixel = true;
+		if (LineType == 1) // 虚线
+		{
+			int patternLength = dashLength + gapLength;
+			int pos = i % patternLength;
+			if (pos >= dashLength) drawPixel = false;
+		}
+		if (drawPixel)
+		{
+			int halfW = max(1, LineWidth - 1) / 2;
+			for (int wx = -halfW; wx <= halfW; ++wx)
+			{
+				for (int wy = -halfW; wy <= halfW; ++wy)
+				{
+					int px = int(x + 0.5) + wx;
+					int py = int(y + 0.5) + wy;
+					dc.SetPixel(px, py, LineColor);
+				}
+			}
+		}
+		x += xInc;
+		y += yInc;
+	}
+}
 
-//void CPaint3Dlg::OnLButtonDown(UINT nFlags, CPoint point)
-//{
-//	isDrawing = true;
-//	startPoint = lastPoint = point;
-//	CDialogEx::OnLButtonDown(nFlags, point);
-//}
-//void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
-//{
-//	if (isDrawing) // 仅在绘图时处理鼠标移动
-//	{
-//		CClientDC dc(this);
-//
-//		// XOR绘图模式用于临时线段显示
-//		dc.SetROP2(R2_NOTXORPEN);
-//
-//		CPen pen(PS_SOLID, 1, LineColor);
-//		CPen* oldPen = dc.SelectObject(&pen);
-//
-//		// 擦除上一次绘制的线段
-//		dc.MoveTo(startPoint);
-//		dc.LineTo(lastPoint);
-//
-//		// 绘制当前线段
-//		dc.MoveTo(startPoint);
-//		dc.LineTo(point);
-//
-//		dc.SelectObject(oldPen);
-//		lastPoint = point; // 更新终点
-//	}
-//	CDialogEx::OnMouseMove(nFlags, point);
-//}
-//void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
-//{
-//	if (isDrawing)
-//	{
-//		isDrawing = false;
-//
-//		CClientDC dc(this);
-//		dc.SetROP2(R2_COPYPEN); // 恢复正常模式
-//
-//		endPoint = point;
-//		Lines.push_back(make_pair(startPoint, endPoint));
-//
-//		int penStyle = LineType ? PS_DASH : PS_SOLID;
-//		LOGBRUSH logBrush = { BS_SOLID, LineColor, 0 };
-//		CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, LineWidth, &logBrush);
-//		CPen* oldPen = dc.SelectObject(&pen);
-//
-//		dc.MoveTo(startPoint);
-//		dc.LineTo(endPoint);
-//
-//		dc.SelectObject(oldPen);
-//	}
-//
-//	CDialogEx::OnLButtonUp(nFlags, point);
-//}
+void CPaint3Dlg::DrawLineMidpoint(CPoint p1, CPoint p2, CDC& dc)
+{
+	int x1 = p1.x, y1 = p1.y;
+	int x2 = p2.x, y2 = p2.y;
+	int dx = abs(x2 - x1);
+	int dy = abs(y2 - y1);
+	int sx = (x1 < x2) ? 1 : -1;
+	int sy = (y1 < y2) ? 1 : -1;
+	bool steep = dy > dx;
+	if (steep)
+	{
+		std::swap(x1, y1);
+		std::swap(x2, y2);
+		std::swap(dx, dy);
+		std::swap(sx, sy);
+	}
+	int d = 2 * dy + dx;
+	int y = y1;
+	int dashLength = 12;
+	int gapLength = 6;
+	for (int i = 0; i <= dx; ++i)
+	{
+		bool drawPixel = true;
+		if (LineType == 1) // 虚线
+		{
+			int pattern = dashLength + gapLength;
+			if ((i % pattern) >= dashLength)
+				drawPixel = false;
+		}
+		if (drawPixel)
+		{
+			int halfW = max(1, LineWidth) / 2;
+			for (int wx = -halfW; wx <= halfW; ++wx)
+			{
+				for (int wy = -halfW; wy <= halfW; ++wy)
+				{
+					if (steep)
+						dc.SetPixel(y + wy, x1 + wx, LineColor);
+					else
+						dc.SetPixel(x1 + wx, y + wy, LineColor);
+				}
+			}
+		}
+		if (d > 0)
+		{
+			y += sy;
+			d -= 2 * dx;
+		}
+		d += 2 * dy;
+		x1 += sx;
+	}
+}
+
+void CPaint3Dlg::DrawLineBresenham(CPoint p1, CPoint p2, CDC& dc)
+{
+	int x1 = p1.x, y1 = p1.y;
+	int x2 = p2.x, y2 = p2.y;
+
+	int dx = abs(x2 - x1);
+	int dy = abs(y2 - y1);
+	int sx = (x1 < x2) ? 1 : -1;
+	int sy = (y1 < y2) ? 1 : -1;
+
+	bool steep = dy > dx;
+	if (steep)
+	{
+		std::swap(x1, y1);
+		std::swap(x2, y2);
+		std::swap(dx, dy);
+		std::swap(sx, sy);
+	}
+
+	int err = -2 * abs(dy - dx);
+	int y = y1;
+
+	int dashLength = 6; // 实线段长度
+	int gapLength = 3;  // 虚线间隔长度
+
+	for (int i = 0; i <= dx; ++i)
+	{
+		bool drawPixel = true;
+		// 线型控制（虚线）
+		if (LineType == 1)
+		{
+			int pattern = dashLength + gapLength;
+			if ((i % pattern) >= dashLength)
+				drawPixel = false;
+		}
+		if (drawPixel)
+		{
+			int halfW = max(1, LineWidth) / 2;
+			for (int wx = -halfW; wx <= halfW; ++wx)
+			{
+				for (int wy = -halfW; wy <= halfW; ++wy)
+				{
+					if (steep)
+						dc.SetPixel(y + wy, x1 + wx, LineColor);
+					else
+						dc.SetPixel(x1 + wx, y + wy, LineColor);
+				}
+			}
+		}
+		if (err > 0)
+		{
+			y += sy;
+			err -= 2 * dx;
+		}
+		err += 2 * dy;
+		x1 += sx;
+	}
+}
 
 void CPaint3Dlg::OnLButtonDown(UINT nFlags, CPoint point)
 {
@@ -384,26 +481,24 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 		else if (Mode == 1) // Line
 		{
 			Lines.push_back(make_pair(startPoint, endPoint));
-			dc.MoveTo(startPoint);
-			dc.LineTo(endPoint);
+			if (Algorithm == 0) // Default line
+			{
+				dc.MoveTo(startPoint);
+				dc.LineTo(endPoint);
+			}
+			else if (Algorithm == 1) // DDA line algorithm
+			{
+				DrawLineDDA(startPoint, endPoint, dc);
+			}
+			else if (Algorithm == 2) // Midpoint line algorithm
+			{
+				DrawLineMidpoint(startPoint, endPoint, dc);
+			}
+			else if (Algorithm == 3) // Bresenham line algorithm
+			{
+				DrawLineBresenham(startPoint, endPoint, dc);
+			}
 		}
-		//else if (Mode == 2)
-		//{
-		//	CRect rect(startPoint, endPoint);
-		//	rect.NormalizeRect();
-		//	hasLastDrawRect = false;
-		//	if (GetKeyState(VK_SHIFT) & 0x8000) // Shift正圆
-		//	{
-		//		int len = min(rect.Width(), rect.Height());
-		//		if (endPoint.x < startPoint.x) rect.left = startPoint.x - len;
-		//		else rect.right = startPoint.x + len;
-		//		if (endPoint.y < startPoint.y) rect.top = startPoint.y - len;
-		//		else rect.bottom = startPoint.y + len;
-		//	}
-
-		//	Ellipses.push_back(rect);
-		//	dc.Ellipse(rect);
-		//}
 		else if (Mode == 2)
 		{
 			CRect rect(startPoint, endPoint);
@@ -445,4 +540,9 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 	}
 
 	CDialogEx::OnLButtonUp(nFlags, point);
+}
+void CPaint3Dlg::OnCbnSelchangeCombo3()
+{
+	int sel = m_algorithm.GetCurSel();
+	Algorithm = sel;
 }

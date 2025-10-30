@@ -38,6 +38,9 @@ protected:
 	
 	bool IsFill = false; // false不填充 true填充
 	int Mode = 0; // 0画笔 1直线 2圆
+	int Algorithm = 0; 
+	// 0 Default 1 DDA 2 Bresenham 3 Midpoint 
+	// 4 Default Circle 5 Midpoint Circle 6 Bresenham Circle
 public:
 	afx_msg void OnBnClickedButton1();
 	afx_msg void OnBnClickedButton2();
@@ -64,4 +67,9 @@ public:
 	vector<vector<CPoint>> Pens; // 保存自由绘制的轨迹
 	vector<COLORREF> PenColors;  // 每段画笔轨迹对应颜色
 	COLORREF BackgroundColor = RGB(255, 255, 255); // 根据您实际背景而定
+	afx_msg void OnCbnSelchangeCombo3();
+	CComboBox m_algorithm;
+	void DrawLineDDA(CPoint p1, CPoint p2, CDC& dc);
+	void DrawLineMidpoint(CPoint p1, CPoint p2, CDC& dc);
+	void DrawLineBresenham(CPoint p1, CPoint p2, CDC& dc);
 };

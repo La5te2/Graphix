@@ -6,146 +6,158 @@
 ## 1.直线算法
 ### 1.1 DDA
 ``` C++
-void CPaint3Dlg::OnDDA()
+void CPaint3Dlg::DrawLineDDA(CPoint p1, CPoint p2, CDC& dc)
 {
-	// TODO: 在此添加命令处理程序代码
-	dlg_line dlg;
-	dlg.DoModal();
-	
-
-	CDC* pDC = GetDC();
-	CRect rect;
-	GetClientRect(&rect);
-	//重定义坐标轴
-	Axis(pDC, rect);
-
-	pDC->TextOut(450, 18, _T("DDA画线法成功了！"));//在屏幕（450，18）的位置显示一个白色底色的黑字：DDA画线法成功了！
-	
-
-	double dx, dy, e, x, y;
-	dx = dlg.x2 - dlg.x1;
-	dy = dlg.y2 - dlg.y1;
-	e = (fabs(dx) > fabs(dy) ? fabs(dx) : fabs(dy));
-	dx /= e;
-	dy /= e;
-	x = dlg.x1;
-	y = dlg.y1;
-
-	for (int i = 1; i <= e; ++i) {
-		pDC->SetPixel(int(x + 0.5), int(y + 0.5), RGB(255, 0, 0));
-		x += dx;
-		y += dy;
+	double dx = p2.x - p1.x;
+	double dy = p2.y - p1.y;
+	double steps = fabs(dx) > fabs(dy) ? fabs(dx) : fabs(dy);
+	double xInc = dx / steps;
+	double yInc = dy / steps;
+	double x = p1.x;
+	double y = p1.y;
+	int dashLength = 12; // 虚线段长度
+	int gapLength = 6; // 虚线间隔长度
+	for (int i = 0; i <= steps; ++i)
+	{
+		bool drawPixel = true;
+		if (LineType == 1) // 虚线
+		{
+			int patternLength = dashLength + gapLength;
+			int pos = i % patternLength;
+			if (pos >= dashLength) drawPixel = false;
+		}
+		if (drawPixel)
+		{
+			int halfW = max(1, LineWidth - 1) / 2;
+			for (int wx = -halfW; wx <= halfW; ++wx)
+			{
+				for (int wy = -halfW; wy <= halfW; ++wy)
+				{
+					int px = int(x + 0.5) + wx;
+					int py = int(y + 0.5) + wy;
+					dc.SetPixel(px, py, LineColor);
+				}
+			}
+		}
+		x += xInc;
+		y += yInc;
 	}
-	
-	
 }
-
-
 ```
 ### 1.2 中点法
 ``` C++
-
-void CPaint3Dlg::OnMidpointline()
+void CPaint3Dlg::DrawLineMidpoint(CPoint p1, CPoint p2, CDC& dc)
 {
-	// TODO: 在此添加命令处理程序代码
-	dlg_line dlg;
-	dlg.DoModal();
-	float x, y, xa, xb, ya, yb;
-	xa = dlg.x1, ya = dlg.y1;
-	xb = dlg.x2; yb = dlg.y2;
-	float d, k;
-	CDC* pDC = GetDC();
-	CRect rect;
-	GetClientRect(&rect);
-	//重定义坐标轴
-	Axis(pDC, rect);
-	pDC->TextOut(450, 18, _T("中点画线法成功了！"));
-	k = (yb - ya) / (xb - xa);
-	y = ya, x = xa;
-	d = 0.5 - k;
-	for (x = xa; x <= xb; x++)
+	int x1 = p1.x, y1 = p1.y;
+	int x2 = p2.x, y2 = p2.y;
+	int dx = abs(x2 - x1);
+	int dy = abs(y2 - y1);
+	int sx = (x1 < x2) ? 1 : -1;
+	int sy = (y1 < y2) ? 1 : -1;
+	bool steep = dy > dx;
+	if (steep)
 	{
-		if (d < 0)
+		std::swap(x1, y1);
+		std::swap(x2, y2);
+		std::swap(dx, dy);
+		std::swap(sx, sy);
+	}
+	int d = 2 * dy + dx;
+	int y = y1;
+	int dashLength = 12;
+	int gapLength = 6;
+	for (int i = 0; i <= dx; ++i)
+	{
+		bool drawPixel = true;
+		if (LineType == 1) // 虚线
 		{
-			y = y + 1; d = d + 1 - k;
+			int pattern = dashLength + gapLength;
+			if ((i % pattern) >= dashLength)
+				drawPixel = false;
 		}
-		else
+		if (drawPixel)
 		{
-			y = y; d = d - k;
+			int halfW = max(1, LineWidth) / 2;
+			for (int wx = -halfW; wx <= halfW; ++wx)
+			{
+				for (int wy = -halfW; wy <= halfW; ++wy)
+				{
+					if (steep)
+						dc.SetPixel(y + wy, x1 + wx, LineColor);
+					else
+						dc.SetPixel(x1 + wx, y + wy, LineColor);
+				}
+			}
 		}
-		pDC->SetPixel(x, y, RGB(0, 0, 255));
+		if (d > 0)
+		{
+			y += sy;
+			d -= 2 * dx;
+		}
+		d += 2 * dy;
+		x1 += sx;
 	}
 }
 ```
 ### 1.3Bresenham法
 ``` C++
-void CPaint3Dlg::OnBresenhamline_1(int x0, int y0, int x1, int y1)
+void CPaint3Dlg::DrawLineBresenham(CPoint p1, CPoint p2, CDC& dc)
 {
-	// TODO: 在此处添加实现代码.
-	CDC* pDC = GetDC();
-	
+	int x1 = p1.x, y1 = p1.y;
+	int x2 = p2.x, y2 = p2.y;
 
-	pDC->TextOut(450, 70, _T("请用鼠标划线！"));
+	int dx = abs(x2 - x1);
+	int dy = abs(y2 - y1);
+	int sx = (x1 < x2) ? 1 : -1;
+	int sy = (y1 < y2) ? 1 : -1;
 
-	// TODO: 在此添加命令处理程序代码
-
-	int color = 255;
-	int x, y, e;
-	int dx = x1 - x0;//x偏移量
-	int dy = y1 - y0;//y偏移量
-	int ux = dx > 0 ? 1 : -1;//x伸展方向
-	int uy = dy > 0 ? 1 : -1;//y伸展方向
-	int dx2 = abs(dx << 1);//x偏移量乘2
-	int dy2 = abs(dy << 1);//y偏移量乘2
-	if (abs(dx) > abs(dy))//以x为增量方向计算
+	bool steep = dy > dx;
+	if (steep)
 	{
-		int e = -dx; //e = -0.5 * 2 * dx,把e 用2 * dx* e替换
-		int x = x0;//起点x坐标
-		int y = y0;//起点y坐标
-		while (x != x1 + ux)
-		{
-			//printf("%d,%d\n", x, y);
-			pDC->SetPixel(x, y, color);
-			e = e + dy2;//来自 2*e*dx= 2*e*dx + 2dy  （原来是 e = e + k）
-			if (e > 0)//e是整数且大于0时表示要取右上的点（否则是右下的点） 
-			{
-				if (y != y1)
-				{
-					y += uy;
-				}
-				e = e - dx2;//2*e*dx = 2*e*dx - 2*dx  (原来是 e = e -1)
-			}
-			x += ux;
-		}
+		std::swap(x1, y1);
+		std::swap(x2, y2);
+		std::swap(dx, dy);
+		std::swap(sx, sy);
 	}
-	else
-	{//以y为增量方向计算
-		int e = -dy; //e = -0.5 * 2 * dy,把e 用2 * dy* e替换
-		int x = x0;//起点x坐标
-		int y = y0;//起点y坐标
-		while (y != y1 + uy)
-		{
-			//printf("%d,%d\n", x, y);
-			pDC->SetPixel(x, y, color);
-			e = e + dx2;//来自 2*e*dy= 2*e*dy + 2dy  （原来是 e = e + k）
-			if (e > 0)//e是整数且大于0时表示要取右上的点（否则是右下的点） 
-			{
-				if (x != x1)
-				{
-					x += ux;
-				}
-				e = e - dy2;//2*e*dy = 2*e*dy - 2*dy  (原来是 e = e -1)
-			}
-			y += uy;
-		}
-	}
-}
 
-void CPaint3Dlg::OnBresenhamline()
-{
-	CDC* pDC = GetDC();
-	state = 1;
-	pDC->TextOut(450, 70, _T("请用鼠标划线！"));
+	int err = -2 * abs(dy - dx);
+	int y = y1;
+
+	int dashLength = 12; // 实线段长度
+	int gapLength = 6;  // 虚线间隔长度
+
+	for (int i = 0; i <= dx; ++i)
+	{
+		bool drawPixel = true;
+		// 线型控制（虚线）
+		if (LineType == 1)
+		{
+			int pattern = dashLength + gapLength;
+			if ((i % pattern) >= dashLength)
+				drawPixel = false;
+		}
+		if (drawPixel)
+		{
+			int halfW = max(1, LineWidth) / 2;
+			for (int wx = -halfW; wx <= halfW; ++wx)
+			{
+				for (int wy = -halfW; wy <= halfW; ++wy)
+				{
+					if (steep)
+						dc.SetPixel(y + wy, x1 + wx, LineColor);
+					else
+						dc.SetPixel(x1 + wx, y + wy, LineColor);
+				}
+			}
+		}
+		if (err > 0)
+		{
+			y += sy;
+			err -= 2 * dx;
+		}
+		err += 2 * dy;
+		x1 += sx;
+	}
 }
 ```
 ## 2.圆
