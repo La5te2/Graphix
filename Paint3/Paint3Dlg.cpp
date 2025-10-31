@@ -7,10 +7,11 @@
 #include "Paint3.h"
 #include "Paint3Dlg.h"
 #include "afxdialogex.h"
-
+#include "std.h"
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
+#include <corecrt_math_defines.h>
 
 
 // 用于应用程序“关于”菜单项的 CAboutDlg 对话框
@@ -129,6 +130,7 @@ BOOL CPaint3Dlg::OnInitDialog()
 	m_mode.AddString(_T("Pen"));
 	m_mode.AddString(_T("Line"));
 	m_mode.AddString(_T("Circle"));
+	m_mode.AddString(_T("Arc"));
 	m_mode.SetCurSel(0);
 	m_algorithm.AddString(_T("Default Line"));
 	m_algorithm.AddString(_T("DDA Line Algorithm"));
@@ -137,6 +139,7 @@ BOOL CPaint3Dlg::OnInitDialog()
 	m_algorithm.AddString(_T("Default Circle"));
 	m_algorithm.AddString(_T("Midpoint Circle Algorithm"));
 	m_algorithm.AddString(_T("Bresenham Circle Algorithm"));
+	m_algorithm.AddString(_T("Bresenham Arc Algorithm"));
 	m_algorithm.SetCurSel(0);
 	UpdateData(FALSE);
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
@@ -386,6 +389,261 @@ void CPaint3Dlg::DrawLineBresenham(CPoint p1, CPoint p2, CDC& dc)
 	}
 }
 
+void CPaint3Dlg::DrawEllipseMidpoint(CDC& dc, const CRect& rect)
+{
+	int xc = (rect.left + rect.right) / 2;
+	int yc = (rect.top + rect.bottom) / 2;
+	int a = abs(rect.right - rect.left) / 2;
+	int b = abs(rect.bottom - rect.top) / 2;
+
+	double a2 = a * a;
+	double b2 = b * b;
+	double d1 = b2 - a2 * b + 0.25 * a2;
+	int x = 0;
+	int y = b;
+
+	int halfW = max(1, LineWidth) / 2;
+	int dashLength = 6;
+	int gapLength = 6;
+	int patternLength = dashLength + gapLength;
+	int step = 0;
+
+	auto drawPixel = [&](int px, int py) {
+		if (LineType == 1) // 虚线
+		{
+			int pos = step % patternLength;
+			if (pos >= dashLength) return;
+		}
+
+		for (int wx = -halfW; wx <= halfW; ++wx)
+			for (int wy = -halfW; wy <= halfW; ++wy)
+				dc.SetPixel(px + wx, py + wy, LineColor);
+	};
+
+	long dx = 2 * b2 * x;
+	long dy = 2 * a2 * y;
+
+	while (dx < dy)
+	{
+		drawPixel(xc + x, yc + y);
+		drawPixel(xc - x, yc + y);
+		drawPixel(xc + x, yc - y);
+		drawPixel(xc - x, yc - y);
+		step++;
+
+		if (d1 < 0)
+		{
+			x++;
+			dx += 2 * b2;
+			d1 += dx + b2;
+		}
+		else
+		{
+			x++;
+			y--;
+			dx += 2 * b2;
+			dy -= 2 * a2;
+			d1 += dx - dy + b2;
+		}
+	}
+	long d2 = (long)(b2 * (x + 0.5) * (x + 0.5)
+		+ a2 * (y - 1) * (y - 1)
+		- a2 * b2);
+
+	while (y >= 0)
+	{
+		drawPixel(xc + x, yc + y);
+		drawPixel(xc - x, yc + y);
+		drawPixel(xc + x, yc - y);
+		drawPixel(xc - x, yc - y);
+		step++;
+
+		if (d2 > 0)
+		{
+			y--;
+			dy -= 2 * a2;
+			d2 += a2 - dy;
+		}
+		else
+		{
+			y--;
+			x++;
+			dx += 2 * b2;
+			dy -= 2 * a2;
+			d2 += dx - dy + a2;
+		}
+	}
+}
+void CPaint3Dlg::DrawEllipseBresenham(CDC& dc, const CRect& rect)
+{
+	// 计算椭圆的中心和半轴长度
+	int xc = (rect.left + rect.right) / 2;
+	int yc = (rect.top + rect.bottom) / 2;
+	int a = abs(rect.right - rect.left) / 2;
+	int b = abs(rect.bottom - rect.top) / 2;
+
+	// 参数合法性检查
+	if (a <= 0 || b <= 0) return;
+
+	int x = 0, y = b;
+
+	// 使用整数运算避免精度问题
+	long long a2 = 1LL * a * a;
+	long long b2 = 1LL * b * b;
+	long long d1 = b2 - a2 * b + a2 / 4;
+	long long d2;
+
+	// 绘制四对称点 + 支持线宽
+	auto plot = [&](int px, int py, int index) {
+		// 虚线控制：每隔一定像素空一段
+		if (LineType == 1 && (index / 5) % 2 == 0) return;
+
+		// 用线宽加粗：在主方向上扩展像素
+		for (int dx = -LineWidth / 2; dx <= LineWidth / 2; ++dx)
+		{
+			for (int dy = -LineWidth / 2; dy <= LineWidth / 2; ++dy)
+			{
+				dc.SetPixel(xc + px + dx, yc + py + dy, LineColor);
+				dc.SetPixel(xc - px + dx, yc + py + dy, LineColor);
+				dc.SetPixel(xc + px + dx, yc - py + dy, LineColor);
+				dc.SetPixel(xc - px + dx, yc - py + dy, LineColor);
+			}
+		}
+		};
+
+	int index = 0;
+	plot(x, y, index);
+
+	// 区域1：斜率绝对值 > 1
+	while (b2 * (x + 1) < a2 * (y - 1))
+	{
+		if (d1 < 0)
+		{
+			d1 += b2 * (2 * x + 3);
+			x++;
+		}
+		else
+		{
+			d1 += b2 * (2 * x + 3) + a2 * (-2 * y + 2);
+			x++;
+			y--;
+		}
+		++index;
+		plot(x, y, index);
+	}
+
+	// 区域2：斜率绝对值 <= 1
+	d2 = b2 * (x + 1) * (x + 1) + a2 * (y - 1) * (y - 1) - a2 * b2;
+	while (y > 0)
+	{
+		if (d2 < 0)
+		{
+			d2 += b2 * (2 * x + 2) + a2 * (-2 * y + 3);
+			x++;
+			y--;
+		}
+		else
+		{
+			d2 += a2 * (-2 * y + 3);
+			y--;
+		}
+		++index;
+		plot(x, y, index);
+	}
+}
+
+void CPaint3Dlg::DrawArcBresenham(bool direction, CPoint p1, CPoint p2, CDC& dc) // 半圆
+{
+	// 圆心 (x0, y0)
+	int x0 = (p1.x + p2.x) / 2;
+	int y0 = (p1.y + p2.y) / 2;
+	// 半径r
+	int r = (int)sqrt((p1.x - x0) * (p1.x - x0) + (p1.y - y0) * (p1.y - y0));
+
+	if (r <= 0) return; // 半径检查
+
+	// 计算两个端点的角度
+	double angle1 = atan2(p1.y - y0, p1.x - x0);
+	double angle2 = atan2(p2.y - y0, p2.x - x0);
+
+	// 规范化角度到 [0, 2π)
+	if (angle1 < 0) angle1 += 2 * M_PI;
+	if (angle2 < 0) angle2 += 2 * M_PI;
+
+	double startAngle, endAngle;
+
+	if (direction) {
+		// 逆时针方向
+		startAngle = angle1;
+		endAngle = angle2;
+		if (endAngle < startAngle) endAngle += 2 * M_PI;
+	}
+	else {
+		// 顺时针方向
+		startAngle = angle2;
+		endAngle = angle1;
+		if (endAngle < startAngle) endAngle += 2 * M_PI;
+	}
+
+	// 使用标准的Bresenham圆算法
+	int x = 0, y = r;
+	int d = 3 - 2 * r; // 初始决策参数
+
+	// 绘制圆弧
+	while (x <= y) {
+		// 检查当前点是否在圆弧范围内
+		for (int i = 0; i < 8; i++) {
+			int cx, cy;
+			double currentAngle;
+
+			// 八分圆对称点
+			switch (i) {
+			case 0: cx = x; cy = y; break;
+			case 1: cx = y; cy = x; break;
+			case 2: cx = -y; cy = x; break;
+			case 3: cx = -x; cy = y; break;
+			case 4: cx = -x; cy = -y; break;
+			case 5: cx = -y; cy = -x; break;
+			case 6: cx = y; cy = -x; break;
+			case 7: cx = x; cy = -y; break;
+			}
+
+			// 计算当前点的角度
+			currentAngle = atan2(cy, cx);
+			if (currentAngle < 0) currentAngle += 2 * M_PI;
+
+			// 检查角度是否在圆弧范围内
+			bool inArc = false;
+			if (endAngle - startAngle >= 2 * M_PI) {
+				inArc = true; // 完整圆
+			}
+			else {
+				// 处理角度跨越0度的情况
+				double checkAngle = currentAngle;
+				if (checkAngle < startAngle) checkAngle += 2 * M_PI;
+				inArc = (checkAngle >= startAngle && checkAngle <= endAngle);
+			}
+
+			if (inArc) {
+				dc.SetPixel(x0 + cx, y0 + cy, LineColor);
+			}
+		}
+
+		// Bresenham算法更新
+		if (d < 0) {
+			d = d + 4 * x + 6;
+		}
+		else {
+			d = d + 4 * (x - y) + 10;
+			y--;
+		}
+		x++;
+	}
+}
+void CPaint3Dlg::DrawArc(float angle, bool direction, CPoint p1, CPoint p2, CDC& dc)  // 扇形圆弧
+{
+
+}
 void CPaint3Dlg::OnLButtonDown(UINT nFlags, CPoint point)
 {
 	isDrawing = true;
@@ -450,6 +708,15 @@ void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 			// 保存本次真实绘制形状
 			lastDrawRect = newRect;
 			hasLastDrawRect = true;
+		}
+		
+		else if (Mode == 3) // Arc Preview
+		{
+			// 擦除旧圆弧，准备下一次预览
+			// 确定圆弧的起点和终点
+			// 使用固定起点，终点跟随鼠标
+			// Shift 控制方向
+			// 使用AngleArc函数绘制圆弧（弧度为Arc_Angle）
 		}
 
 		dc.SelectObject(oldPen);
@@ -525,14 +792,32 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 			}
 			else
 			{
-				/*CBrush backBrush(BackgroundColor);
-				CBrush* oldBrush = dc.SelectObject(&backBrush);
-				dc.Ellipse(rect);
-				dc.SelectObject(oldBrush);*/
 				CBrush* pNullBrush = CBrush::FromHandle((HBRUSH)GetStockObject(NULL_BRUSH));
 				CBrush* oldBrush = dc.SelectObject(pNullBrush);
-				dc.Ellipse(rect);
+				if(Algorithm == 4) // Default Circle
+				{
+					dc.Ellipse(rect);
+				}
+				else if(Algorithm == 5) // Midpoint Circle
+				{
+					DrawEllipseMidpoint(dc, rect);
+				}
+				else if(Algorithm == 6) // Bresenham Circle
+				{
+					DrawEllipseBresenham(dc, rect);
+				}
 				dc.SelectObject(oldBrush);
+			}
+		}
+		else if (Mode == 3) // Arc
+		{
+			Arcs.push_back(make_pair(startPoint, endPoint));
+			bool direction = true; // 默认逆时针
+			if (GetKeyState(VK_SHIFT) & 0x8000)
+				direction = false; // 顺时针
+			if (Algorithm == 7) // Bresenham Arc
+			{
+				DrawArcBresenham(direction, startPoint, endPoint, dc);
 			}
 		}
 

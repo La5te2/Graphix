@@ -72,4 +72,17 @@ public:
 	void DrawLineDDA(CPoint p1, CPoint p2, CDC& dc);
 	void DrawLineMidpoint(CPoint p1, CPoint p2, CDC& dc);
 	void DrawLineBresenham(CPoint p1, CPoint p2, CDC& dc);
+	void DrawEllipseMidpoint(CDC& dc, const CRect& rect);
+	void DrawEllipseBresenham(CDC& dc, const CRect& rect);
+	// 圆弧相关
+	vector<pair<CPoint, CPoint>> Arcs; // 存储弧线的起点和终点
+	float Arc_Angle; // 圆弧角度
+	CPoint lastArcStartPoint;  // 上次圆弧起点
+	CPoint lastArcEndPoint;    // 上次圆弧终点
+	int lastArcRadius;         // 上次圆弧半径
+	float lastArcStartAngle;   // 上次起始角度
+	float lastArcSweepAngle;   // 上次扫过角度
+	CPoint lastArcCenter;      // 上次圆弧圆心
+	void DrawArcBresenham(bool direction, CPoint p1, CPoint p2, CDC& dc);
+	void DrawArc(float angle, bool direction, CPoint p1, CPoint p2, CDC& dc);
 };
