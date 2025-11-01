@@ -70,9 +70,12 @@ public:
 	COLORREF BackgroundColor = RGB(255, 255, 255); // 根据您实际背景而定
 	afx_msg void OnCbnSelchangeCombo3();
 	CComboBox m_algorithm;
+	// 画线相关算法
+	void DrawLineDefault(CPoint p1, CPoint p2, CDC& dc);
 	void DrawLineDDA(CPoint p1, CPoint p2, CDC& dc);
 	void DrawLineMidpoint(CPoint p1, CPoint p2, CDC& dc);
 	void DrawLineBresenham(CPoint p1, CPoint p2, CDC& dc);
+	// 画圆相关算法
 	void DrawEllipseMidpoint(CDC& dc, const CRect& rect);
 	void DrawEllipseBresenham(CDC& dc, const CRect& rect);
 	// 圆弧相关
@@ -93,4 +96,11 @@ public:
 	vector<CPoint> currentPolygon;
 	bool isDrawingPolygon = false;
 	afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
+	// 填充相关
+	void ScanlineFill(CDC& dc, CPoint seed, COLORREF fillColor, COLORREF borderColor);
+	void ScanlineFillFM(CDC& dc, CPoint seed, COLORREF fillColor, COLORREF borderColor);
+	// 裁剪相关
+	CRect clipRect;
+	bool ClipLineCohenSutherland(CPoint& p1, CPoint& p2, CRect clip);
+	bool ClipLineMidpoint(CPoint &p1, CPoint &p2, CRect clip);
 };
