@@ -55,7 +55,8 @@ CPaint3Dlg::CPaint3Dlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_PAINT3_DIALOG, pParent)
 	, LineWidth(0)
 	, LineType(0)
-	, arcAngle(M_PI / 2)
+	, arcAngle(M_PI)
+	, arcAngleDeg(0)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -69,6 +70,7 @@ void CPaint3Dlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_COMBO1, m_fill);
 	DDX_Control(pDX, IDC_COMBO2, m_mode);
 	DDX_Control(pDX, IDC_COMBO3, m_algorithm);
+	DDX_Text(pDX, IDC_EDIT2, arcAngleDeg);
 }
 
 BEGIN_MESSAGE_MAP(CPaint3Dlg, CDialogEx)
@@ -86,6 +88,8 @@ BEGIN_MESSAGE_MAP(CPaint3Dlg, CDialogEx)
 	ON_WM_MOUSEMOVE()
 	ON_CBN_SELCHANGE(IDC_COMBO2, &CPaint3Dlg::OnCbnSelchangeCombo2)
 	ON_CBN_SELCHANGE(IDC_COMBO3, &CPaint3Dlg::OnCbnSelchangeCombo3)
+	ON_EN_CHANGE(IDC_EDIT2, &CPaint3Dlg::OnEnChangeEdit2)
+	ON_WM_KEYDOWN()
 END_MESSAGE_MAP()
 
 
@@ -132,6 +136,7 @@ BOOL CPaint3Dlg::OnInitDialog()
 	m_mode.AddString(_T("Line"));
 	m_mode.AddString(_T("Circle"));
 	m_mode.AddString(_T("Arc"));
+	m_mode.AddString(_T("Polygon"));
 	m_mode.SetCurSel(0);
 	m_algorithm.AddString(_T("Default Line"));
 	m_algorithm.AddString(_T("DDA Line Algorithm"));
@@ -141,6 +146,7 @@ BOOL CPaint3Dlg::OnInitDialog()
 	m_algorithm.AddString(_T("Midpoint Circle Algorithm"));
 	m_algorithm.AddString(_T("Bresenham Circle Algorithm"));
 	m_algorithm.AddString(_T("Bresenham Arc Algorithm"));
+	m_algorithm.AddString(_T("Polygon Algorithm"));
 	m_algorithm.SetCurSel(0);
 	UpdateData(FALSE);
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
@@ -162,7 +168,15 @@ void CPaint3Dlg::OnSysCommand(UINT nID, LPARAM lParam)
 // 如果向对话框添加最小化按钮，则需要下面的代码
 //  来绘制该图标。  对于使用文档/视图模型的 MFC 应用程序，
 //  这将由框架自动完成。
-
+BOOL CPaint3Dlg::PreTranslateMessage(MSG* pMsg) // 捕获键盘消息
+{
+	if (pMsg->message == WM_KEYDOWN)
+	{
+		OnKeyDown((UINT)pMsg->wParam, (UINT)pMsg->lParam, 0);
+		return TRUE;
+	}
+	return CDialogEx::PreTranslateMessage(pMsg);
+}
 void CPaint3Dlg::OnPaint()
 {
 	if (IsIconic())
@@ -193,51 +207,6 @@ void CPaint3Dlg::OnPaint()
 HCURSOR CPaint3Dlg::OnQueryDragIcon()
 {
 	return static_cast<HCURSOR>(m_hIcon);
-}
-
-
-void CPaint3Dlg::OnBnClickedButton1()
-{
-	CColorDialog colorDlg(LineColor, CC_FULLOPEN);
-	// LineColor = color;
-	if (IDOK == colorDlg.DoModal()) {
-		LineColor = colorDlg.GetColor();
-	}
-}
-
-void CPaint3Dlg::OnBnClickedButton2()
-{
-	CColorDialog colorDlg(ShapeColor, CC_FULLOPEN);
-	// LineColor = color;
-	if (IDOK == colorDlg.DoModal()) {
-		ShapeColor = colorDlg.GetColor();
-	}
-}
-
-void CPaint3Dlg::OnEnChangeEdit1()
-{
-	UpdateData(TRUE); // 将控件的值更新到变量
-}
-
-void CPaint3Dlg::OnBnClickedRadio1()
-{
-	LineType = 0;
-}
-
-void CPaint3Dlg::OnBnClickedRadio2()
-{
-	LineType = 1;
-}
-
-void CPaint3Dlg::OnCbnSelchangeCombo1()
-{
-	int sel = m_fill.GetCurSel();
-	IsFill = (sel == 0) ? true : false;
-}
-void CPaint3Dlg::OnCbnSelchangeCombo2()
-{
-	int sel = m_mode.GetCurSel();
-	Mode = sel;
 }
 
 void CPaint3Dlg::DrawLineDDA(CPoint p1, CPoint p2, CDC& dc)
@@ -750,6 +719,60 @@ void CPaint3Dlg::DrawArcPreview(float angle, bool direction, CPoint p1, CPoint p
 	dc.MoveTo((int)round(sx), (int)round(sy));
 	dc.AngleArc((int)round(cx), (int)round(cy), (int)round(r), (float)startDeg, (float)sweepDeg);
 }
+
+void CPaint3Dlg::ScanConvertPolygonOutline(CDC& dc, const std::vector<CPoint>& poly, COLORREF color)
+{
+	if (poly.size() < 2) return;
+	for (size_t i = 0; i < poly.size(); ++i) {
+		CPoint a = poly[i];
+		CPoint b = poly[(i + 1) % poly.size()];
+		DrawLineBresenham(a, b, dc);
+	}
+	if (!IsFill) return;
+
+	// --- 3️⃣ 扫描线填充算法 ---
+	// 获取多边形的 y 范围
+	int ymin = poly[0].y, ymax = poly[0].y;
+	for (const auto& p : poly) {
+		ymin = min(ymin, p.y);
+		ymax = max(ymax, p.y);
+	}
+
+	// --- 4️⃣ 对每条扫描线求交点 ---
+	for (int y = ymin; y <= ymax; ++y)
+	{
+		std::vector<int> xIntersections;
+
+		for (size_t i = 0; i < poly.size(); ++i)
+		{
+			CPoint p1 = poly[i];
+			CPoint p2 = poly[(i + 1) % poly.size()];
+
+			// 保证 p1.y <= p2.y
+			if (p1.y > p2.y) std::swap(p1, p2);
+
+			// 跳过不相交的边
+			if (y < p1.y || y >= p2.y) continue;
+
+			// 计算交点 x 坐标（线性插值）
+			if (p2.y != p1.y) {
+				double x = p1.x + (double)(y - p1.y) * (p2.x - p1.x) / (p2.y - p1.y);
+				xIntersections.push_back((int)round(x));
+			}
+		}
+
+		// --- 5️⃣ 排序交点并两两连线 ---
+		std::sort(xIntersections.begin(), xIntersections.end());
+		for (size_t k = 0; k + 1 < xIntersections.size(); k += 2)
+		{
+			int xStart = xIntersections[k];
+			int xEnd = xIntersections[k + 1];
+			for (int x = xStart; x <= xEnd; ++x)
+				dc.SetPixel(x, y, ShapeColor);
+		}
+	}
+}
+
 void CPaint3Dlg::OnLButtonDown(UINT nFlags, CPoint point)
 {
 	isDrawing = true;
@@ -824,6 +847,7 @@ void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 				DrawArcPreview(lastArcAngle, lastArcDirection, lastArcStart, lastArcEnd, dc);
 			}
 			// 当前终点
+			arcAngle = arcAngleDeg * M_PI / 180.0;
 			CPoint endPoint = point;
 			// 判断方向（Shift 控制）
 			bool direction = (GetKeyState(VK_SHIFT) & 0x8000) == 0; // true=逆时针, false=顺时针
@@ -836,11 +860,21 @@ void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 			lastArcStart = startPoint;
 			lastArcEnd = endPoint;
 		}
+		else if (Mode == 4)
+		{
+			// 多边形模式下的预览线段
+			if (currentPolygon.size() > 0)
+			{
+				// 擦除旧线段
+				// 绘制新线段
+			}
+		}
 
 		dc.SelectObject(oldPen);
 		lastPoint = point;
 	}
 }
+
 void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 {
 	if (isDrawing)
@@ -936,14 +970,87 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 				direction = false; // 顺时针
 			if (Algorithm == 7) // Bresenham Arc
 			{
+				arcAngle = arcAngleDeg * M_PI / 180.0;
 				DrawArc(arcAngle, direction, startPoint, endPoint, dc);
 			}
 		}
-
+		else if (Mode == 4) // Polygon
+		{	
+			currentPolygon.push_back(point);
+		}
 		dc.SelectObject(oldPen);
 	}
 
 	CDialogEx::OnLButtonUp(nFlags, point);
+}
+void CPaint3Dlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
+{
+	if (Mode == 4 && nChar == VK_CONTROL) // Ctrl 键
+	{
+		if (currentPolygon.size() >= 3)
+		{
+			CClientDC dc(this);
+			dc.SetROP2(R2_COPYPEN);
+			int penStyle = LineType ? PS_DASH : PS_SOLID;
+			LOGBRUSH logBrush = { BS_SOLID, LineColor, 0 };
+			CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, LineWidth, &logBrush);
+			CPen* oldPen = dc.SelectObject(&pen);
+			ScanConvertPolygonOutline(dc, currentPolygon, LineColor);
+			Polygons.push_back(currentPolygon);
+			currentPolygon.clear();
+			dc.SelectObject(oldPen);
+		}
+	}
+
+	CDialogEx::OnKeyDown(nChar, nRepCnt, nFlags);
+}
+
+void CPaint3Dlg::OnBnClickedButton1()
+{
+	CColorDialog colorDlg(LineColor, CC_FULLOPEN);
+	// LineColor = color;
+	if (IDOK == colorDlg.DoModal()) {
+		LineColor = colorDlg.GetColor();
+	}
+}
+
+void CPaint3Dlg::OnBnClickedButton2()
+{
+	CColorDialog colorDlg(ShapeColor, CC_FULLOPEN);
+	// LineColor = color;
+	if (IDOK == colorDlg.DoModal()) {
+		ShapeColor = colorDlg.GetColor();
+	}
+}
+
+void CPaint3Dlg::OnEnChangeEdit1()
+{
+	UpdateData(TRUE); // 将控件的值更新到变量
+}
+void CPaint3Dlg::OnEnChangeEdit2()
+{
+	UpdateData(TRUE); // 将控件的值更新到变量
+}
+
+void CPaint3Dlg::OnBnClickedRadio1()
+{
+	LineType = 0;
+}
+
+void CPaint3Dlg::OnBnClickedRadio2()
+{
+	LineType = 1;
+}
+
+void CPaint3Dlg::OnCbnSelchangeCombo1()
+{
+	int sel = m_fill.GetCurSel();
+	IsFill = (sel == 0) ? true : false;
+}
+void CPaint3Dlg::OnCbnSelchangeCombo2()
+{
+	int sel = m_mode.GetCurSel();
+	Mode = sel;
 }
 void CPaint3Dlg::OnCbnSelchangeCombo3()
 {

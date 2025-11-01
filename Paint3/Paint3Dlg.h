@@ -25,7 +25,7 @@ public:
 // 实现
 protected:
 	HICON m_hIcon;
-
+	virtual BOOL PreTranslateMessage(MSG* pMsg);
 	// 生成的消息映射函数
 	virtual BOOL OnInitDialog();
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
@@ -41,6 +41,7 @@ protected:
 	int Algorithm = 0; 
 	// 0 Default 1 DDA 2 Bresenham 3 Midpoint 
 	// 4 Default Circle 5 Midpoint Circle 6 Bresenham Circle
+	
 public:
 	afx_msg void OnBnClickedButton1();
 	afx_msg void OnBnClickedButton2();
@@ -77,6 +78,7 @@ public:
 	// 圆弧相关
 	vector<pair<CPoint, CPoint>> Arcs; // 存储弧线的起点和终点
 	bool hasLastDrawArc = false;
+	float arcAngleDeg;
 	float arcAngle; // 圆弧角度
 	float lastArcAngle;
 	bool lastArcDirection;
@@ -84,4 +86,11 @@ public:
 	CPoint lastArcEnd;
 	void DrawArc(float angle, bool direction, CPoint p1, CPoint p2, CDC& dc);
 	void DrawArcPreview(float angle, bool direction, CPoint p1, CPoint p2, CDC& dc);
+	// 多边形相关
+	void ScanConvertPolygonOutline(CDC& dc, const std::vector<CPoint>& poly, COLORREF color);
+	afx_msg void OnEnChangeEdit2();
+	vector<vector<CPoint>> Polygons;
+	vector<CPoint> currentPolygon;
+	bool isDrawingPolygon = false;
+	afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
 };
