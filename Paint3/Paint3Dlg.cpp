@@ -12,7 +12,7 @@
 #define new DEBUG_NEW
 #endif
 #include <corecrt_math_defines.h>
-
+using namespace std;
 
 // 用于应用程序“关于”菜单项的 CAboutDlg 对话框
 
@@ -55,6 +55,7 @@ CPaint3Dlg::CPaint3Dlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_PAINT3_DIALOG, pParent)
 	, LineWidth(0)
 	, LineType(0)
+	, arcAngle(M_PI / 2)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -268,7 +269,7 @@ void CPaint3Dlg::DrawLineDDA(CPoint p1, CPoint p2, CDC& dc)
 				{
 					int px = int(x + 0.5) + wx;
 					int py = int(y + 0.5) + wy;
-					dc.SetPixel(px, py, LineColor);
+					dc.SetPixelV(px, py, LineColor);
 				}
 			}
 		}
@@ -314,9 +315,9 @@ void CPaint3Dlg::DrawLineMidpoint(CPoint p1, CPoint p2, CDC& dc)
 				for (int wy = -halfW; wy <= halfW; ++wy)
 				{
 					if (steep)
-						dc.SetPixel(y + wy, x1 + wx, LineColor);
+						dc.SetPixelV(y + wy, x1 + wx, LineColor);
 					else
-						dc.SetPixel(x1 + wx, y + wy, LineColor);
+						dc.SetPixelV(x1 + wx, y + wy, LineColor);
 				}
 			}
 		}
@@ -373,9 +374,9 @@ void CPaint3Dlg::DrawLineBresenham(CPoint p1, CPoint p2, CDC& dc)
 				for (int wy = -halfW; wy <= halfW; ++wy)
 				{
 					if (steep)
-						dc.SetPixel(y + wy, x1 + wx, LineColor);
+						dc.SetPixelV(y + wy, x1 + wx, LineColor);
 					else
-						dc.SetPixel(x1 + wx, y + wy, LineColor);
+						dc.SetPixelV(x1 + wx, y + wy, LineColor);
 				}
 			}
 		}
@@ -417,7 +418,7 @@ void CPaint3Dlg::DrawEllipseMidpoint(CDC& dc, const CRect& rect)
 
 		for (int wx = -halfW; wx <= halfW; ++wx)
 			for (int wy = -halfW; wy <= halfW; ++wy)
-				dc.SetPixel(px + wx, py + wy, LineColor);
+				dc.SetPixelV(px + wx, py + wy, LineColor);
 	};
 
 	long dx = 2 * b2 * x;
@@ -503,10 +504,10 @@ void CPaint3Dlg::DrawEllipseBresenham(CDC& dc, const CRect& rect)
 		{
 			for (int dy = -LineWidth / 2; dy <= LineWidth / 2; ++dy)
 			{
-				dc.SetPixel(xc + px + dx, yc + py + dy, LineColor);
-				dc.SetPixel(xc - px + dx, yc + py + dy, LineColor);
-				dc.SetPixel(xc + px + dx, yc - py + dy, LineColor);
-				dc.SetPixel(xc - px + dx, yc - py + dy, LineColor);
+				dc.SetPixelV(xc + px + dx, yc + py + dy, LineColor);
+				dc.SetPixelV(xc - px + dx, yc + py + dy, LineColor);
+				dc.SetPixelV(xc + px + dx, yc - py + dy, LineColor);
+				dc.SetPixelV(xc - px + dx, yc - py + dy, LineColor);
 			}
 		}
 		};
@@ -552,97 +553,202 @@ void CPaint3Dlg::DrawEllipseBresenham(CDC& dc, const CRect& rect)
 	}
 }
 
-void CPaint3Dlg::DrawArcBresenham(bool direction, CPoint p1, CPoint p2, CDC& dc) // 半圆
+void CPaint3Dlg::DrawArc(float angle, bool direction, CPoint p1, CPoint p2, CDC& dc)
 {
-	// 圆心 (x0, y0)
-	int x0 = (p1.x + p2.x) / 2;
-	int y0 = (p1.y + p2.y) / 2;
-	// 半径r
-	int r = (int)sqrt((p1.x - x0) * (p1.x - x0) + (p1.y - y0) * (p1.y - y0));
+	if (fabs(angle) < 1e-6) {
+		dc.SetPixel(p1.x, p1.y, LineColor);
+		return;
+	}
 
-	if (r <= 0) return; // 半径检查
+	double x1 = p1.x, y1 = p1.y;
+	double x2 = p2.x, y2 = p2.y;
+	double dx = x2 - x1, dy = y2 - y1;
+	double d = sqrt(dx * dx + dy * dy);
+	if (d < 1e-6) return;
 
-	// 计算两个端点的角度
-	double angle1 = atan2(p1.y - y0, p1.x - x0);
-	double angle2 = atan2(p2.y - y0, p2.x - x0);
+	double halfAngle = fabs(angle) / 2.0;
+	double r = (d / 2.0) / sin(halfAngle);
+	double h = sqrt(max(0.0, r * r - (d / 2.0) * (d / 2.0)));
 
-	// 规范化角度到 [0, 2π)
-	if (angle1 < 0) angle1 += 2 * M_PI;
-	if (angle2 < 0) angle2 += 2 * M_PI;
+	// 中点与垂线方向
+	double mx = (x1 + x2) / 2.0;
+	double my = (y1 + y2) / 2.0;
+	double ux = -dy / d, uy = dx / d;
 
-	double startAngle, endAngle;
+	// 候选圆心
+	double cx1 = mx + ux * h;
+	double cy1 = my + uy * h;
+	double cx2 = mx - ux * h;
+	double cy2 = my - uy * h;
 
+	auto arcSpan = [&](double cx, double cy) {
+		double a1 = atan2(y1 - cy, x1 - cx);
+		double a2 = atan2(y2 - cy, x2 - cx);
+		double da = a2 - a1;
+		if (da < 0) da += 2 * M_PI;
+		return da; // CCW span from p1 to p2 in [0, 2PI)
+	};
+
+	double span1 = arcSpan(cx1, cy1);
+	double span2 = arcSpan(cx2, cy2);
+
+	// 目标弧长（按正方向），规范到 [0, 2PI)
+	double target = fmod(fabs(angle), 2 * M_PI);
+	if (target < 0) target += 2 * M_PI;
+	double desiredSpan;
 	if (direction) {
-		// 逆时针方向
-		startAngle = angle1;
-		endAngle = angle2;
-		if (endAngle < startAngle) endAngle += 2 * M_PI;
+		// 逆时针 -> 直接和 target 比
+		desiredSpan = target;
 	}
 	else {
-		// 顺时针方向
-		startAngle = angle2;
-		endAngle = angle1;
-		if (endAngle < startAngle) endAngle += 2 * M_PI;
+		// 顺时针 -> 要比较的是 2PI - target（对应的 CCW 跨度应接近 2PI - target）
+		desiredSpan = fmod(2 * M_PI - target, 2 * M_PI);
 	}
 
-	// 使用标准的Bresenham圆算法
-	int x = 0, y = r;
-	int d = 3 - 2 * r; // 初始决策参数
+	double diff1 = fabs(span1 - desiredSpan);
+	double diff2 = fabs(span2 - desiredSpan);
 
-	// 绘制圆弧
-	while (x <= y) {
-		// 检查当前点是否在圆弧范围内
-		for (int i = 0; i < 8; i++) {
-			int cx, cy;
-			double currentAngle;
+	double cx, cy;
+	if (diff1 < diff2)
+		cx = cx1, cy = cy1;
+	else
+		cx = cx2, cy = cy2;
 
-			// 八分圆对称点
-			switch (i) {
-			case 0: cx = x; cy = y; break;
-			case 1: cx = y; cy = x; break;
-			case 2: cx = -y; cy = x; break;
-			case 3: cx = -x; cy = y; break;
-			case 4: cx = -x; cy = -y; break;
-			case 5: cx = -y; cy = -x; break;
-			case 6: cx = y; cy = -x; break;
-			case 7: cx = x; cy = -y; break;
-			}
+	// 根据 direction 决定绘制方向
+	double startA = atan2(y1 - cy, x1 - cx);
+	// 步长计算
+	double arcLen = fabs(angle * r);
+	int steps = max(2, (int)ceil(arcLen / 0.8));
 
-			// 计算当前点的角度
-			currentAngle = atan2(cy, cx);
-			if (currentAngle < 0) currentAngle += 2 * M_PI;
+	/*for (int i = 0; i <= steps; ++i) {
+		double t = (double)i / steps;
+		double theta = direction ? (startA + t * angle) : (startA - t * angle);
+		int sx = (int)round(cx + r * cos(theta));
+		int sy = (int)round(cy + r * sin(theta));
+		dc.SetPixel(sx, sy, LineColor);
+	}
 
-			// 检查角度是否在圆弧范围内
-			bool inArc = false;
-			if (endAngle - startAngle >= 2 * M_PI) {
-				inArc = true; // 完整圆
-			}
-			else {
-				// 处理角度跨越0度的情况
-				double checkAngle = currentAngle;
-				if (checkAngle < startAngle) checkAngle += 2 * M_PI;
-				inArc = (checkAngle >= startAngle && checkAngle <= endAngle);
-			}
-
-			if (inArc) {
-				dc.SetPixel(x0 + cx, y0 + cy, LineColor);
+	dc.SetPixel(p1.x, p1.y, LineColor);
+	dc.SetPixel(p2.x, p2.y, LineColor);*/
+	for (int i = 0; i <= steps; ++i)
+	{
+		double t = (double)i / steps;
+		double theta = direction ? (startA + t * angle) : (startA - t * angle);
+		int sx = (int)round(cx + r * cos(theta));
+		int sy = (int)round(cy + r * sin(theta));
+		bool drawPixel = true;
+		if (LineType == 1) // 虚线
+		{
+			const int dashLength = max(2, LineWidth * 4);
+			const int gapLength = max(2, LineWidth * 2);
+			int patternLength = dashLength + gapLength;
+			int patternPos = i % patternLength;
+			drawPixel = (patternPos < dashLength);
+		}
+		if (drawPixel)
+		{
+			int radius = max(1, LineWidth / 2);
+			for (int dx = -radius; dx <= radius; ++dx)
+			{
+				for (int dy = -radius; dy <= radius; ++dy)
+				{
+					if (dx * dx + dy * dy <= radius * radius)
+					{
+						dc.SetPixelV(sx + dx, sy + dy, LineColor);
+					}
+				}
 			}
 		}
+	}
 
-		// Bresenham算法更新
-		if (d < 0) {
-			d = d + 4 * x + 6;
+	// 确保端点也绘制
+	int radius = max(1, LineWidth / 2);
+	for (int dx = -radius; dx <= radius; ++dx)
+	{
+		for (int dy = -radius; dy <= radius; ++dy)
+		{
+			if (dx * dx + dy * dy <= radius * radius)
+			{
+				dc.SetPixelV(p1.x + dx, p1.y + dy, LineColor);
+				dc.SetPixelV(p2.x + dx, p2.y + dy, LineColor);
+			}
 		}
-		else {
-			d = d + 4 * (x - y) + 10;
-			y--;
-		}
-		x++;
 	}
 }
-void CPaint3Dlg::DrawArc(float angle, bool direction, CPoint p1, CPoint p2, CDC& dc)  // 扇形圆弧
+void CPaint3Dlg::DrawArcPreview(float angle, bool direction, CPoint p1, CPoint p2, CDC& dc)
 {
+	if (fabs(angle) < 1e-6) {
+		dc.MoveTo(p1);
+		dc.LineTo(p2);
+		return;
+	}
 
+	double x1 = p1.x, y1 = p1.y;
+	double x2 = p2.x, y2 = p2.y;
+	double dx = x2 - x1, dy = y2 - y1;
+	double d = sqrt(dx * dx + dy * dy);
+	if (d < 1e-6) return;
+
+	double halfAngle = fabs(angle) / 2.0;
+	double r = (d / 2.0) / sin(halfAngle);
+	double h = sqrt(max(0.0, r * r - (d / 2.0) * (d / 2.0)));
+
+	// 中点与垂线方向
+	double mx = (x1 + x2) / 2.0;
+	double my = (y1 + y2) / 2.0;
+	double ux = -dy / d, uy = dx / d;
+
+	// 候选圆心
+	double cx1 = mx + ux * h;
+	double cy1 = my + uy * h;
+	double cx2 = mx - ux * h;
+	double cy2 = my - uy * h;
+
+	auto arcSpan = [&](double cx, double cy) {
+		double a1 = atan2(y1 - cy, x1 - cx);
+		double a2 = atan2(y2 - cy, x2 - cx);
+		double da = a2 - a1;
+		if (da < 0) da += 2 * M_PI;
+		return da; // CCW span
+		};
+
+	// CCW跨度
+	double span1 = arcSpan(cx1, cy1);
+	double span2 = arcSpan(cx2, cy2);
+
+	// 目标弧度长度
+	double target = fmod(fabs(angle), 2 * M_PI);
+	if (target < 0) target += 2 * M_PI;
+
+	// 根据方向调整比较的跨度
+	double desiredSpan;
+	if (direction) {
+		desiredSpan = target; // 逆时针
+	}
+	else {
+		desiredSpan = fmod(2 * M_PI - target, 2 * M_PI); // 顺时针
+	}
+
+	// 选出合适圆心
+	double diff1 = fabs(span1 - desiredSpan);
+	double diff2 = fabs(span2 - desiredSpan);
+	double cx, cy;
+	if (diff1 < diff2)
+		cx = cx1, cy = cy1;
+	else
+		cx = cx2, cy = cy2;
+
+	// 计算实际起始角度（数学坐标系下，逆时针为正）
+	double startRad = atan2(y1 - cy, x1 - cx);
+	double sweepRad = direction ? angle : -angle;
+
+	double startDeg = -startRad * 180.0 / M_PI;
+	double sweepDeg = -sweepRad * 180.0 / M_PI;
+
+	double sx = cx + r * cos(startRad);
+	double sy = cy + r * sin(startRad);
+	dc.MoveTo((int)round(sx), (int)round(sy));
+	dc.AngleArc((int)round(cx), (int)round(cy), (int)round(r), (float)startDeg, (float)sweepDeg);
 }
 void CPaint3Dlg::OnLButtonDown(UINT nFlags, CPoint point)
 {
@@ -712,11 +818,23 @@ void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 		
 		else if (Mode == 3) // Arc Preview
 		{
-			// 擦除旧圆弧，准备下一次预览
-			// 确定圆弧的起点和终点
-			// 使用固定起点，终点跟随鼠标
-			// Shift 控制方向
-			// 使用AngleArc函数绘制圆弧（弧度为Arc_Angle）
+			// 擦除旧圆弧（XOR）
+			if (hasLastDrawArc)
+			{
+				DrawArcPreview(lastArcAngle, lastArcDirection, lastArcStart, lastArcEnd, dc);
+			}
+			// 当前终点
+			CPoint endPoint = point;
+			// 判断方向（Shift 控制）
+			bool direction = (GetKeyState(VK_SHIFT) & 0x8000) == 0; // true=逆时针, false=顺时针
+			// 绘制新的圆弧预览
+			DrawArcPreview((float)arcAngle, direction, startPoint, endPoint, dc);
+			// 保存状态供擦除
+			hasLastDrawArc = true;
+			lastArcAngle = (float)arcAngle;
+			lastArcDirection = direction;
+			lastArcStart = startPoint;
+			lastArcEnd = endPoint;
 		}
 
 		dc.SelectObject(oldPen);
@@ -812,12 +930,13 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 		else if (Mode == 3) // Arc
 		{
 			Arcs.push_back(make_pair(startPoint, endPoint));
+			hasLastDrawArc = false;
 			bool direction = true; // 默认逆时针
 			if (GetKeyState(VK_SHIFT) & 0x8000)
 				direction = false; // 顺时针
 			if (Algorithm == 7) // Bresenham Arc
 			{
-				DrawArcBresenham(direction, startPoint, endPoint, dc);
+				DrawArc(arcAngle, direction, startPoint, endPoint, dc);
 			}
 		}
 
