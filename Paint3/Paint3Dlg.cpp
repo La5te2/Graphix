@@ -148,7 +148,9 @@ BOOL CPaint3Dlg::OnInitDialog()
 	m_algorithm.AddString(_T("Midpoint Circle Algorithm"));
 	m_algorithm.AddString(_T("Bresenham Circle Algorithm"));
 	m_algorithm.AddString(_T("Bresenham Arc Algorithm"));
-	m_algorithm.AddString(_T("Polygon Algorithm"));
+	m_algorithm.AddString(_T("Default Polygon Algorithm"));
+	m_algorithm.AddString(_T("Default Clip"));
+	m_algorithm.AddString(_T("Polygon Clip"));
 	m_algorithm.SetCurSel(0);
 	UpdateData(FALSE);
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
@@ -734,7 +736,7 @@ void CPaint3Dlg::ScanConvertPolygonOutline(CDC& dc, const std::vector<CPoint>& p
 	for (size_t i = 0; i < poly.size(); ++i) {
 		CPoint a = poly[i];
 		CPoint b = poly[(i + 1) % poly.size()];
-		DrawLineBresenham(a, b, dc);
+		DrawLineDefault(a, b, dc);
 	}
 	if (!IsFill) return;
 
@@ -961,29 +963,7 @@ bool CPaint3Dlg::ClipLineCohenSutherland(CPoint& p1, CPoint& p2, CRect clip)
 	}
 }
 
-//bool CPaint3Dlg::ClipLineMidpoint(CPoint p1, CPoint p2, CRect clip)
-//{
-//	auto isInside = [&](CPoint p) {
-//		return clip.PtInRect(p) != FALSE;
-//		};
-//
-//	if (isInside(p1) && isInside(p2))
-//	{
-//		DrawLineBresenham(p1, p2, *GetDC());
-//		return true;
-//	}
-//
-//	if (p1 == p2) return false; // 点不可见
-//
-//	CPoint mid((p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
-//
-//	if (mid == p1 || mid == p2) return false; // 无法再分割
-//
-//	bool left = ClipLineMidpoint(p1, mid, clip);
-//	bool right = ClipLineMidpoint(mid, p2, clip);
-//
-//	return left || right;
-//}
+
 bool CPaint3Dlg::ClipLineMidpoint(CPoint& p1, CPoint& p2, CRect clip)
 {
 	auto isInside = [&](CPoint p) {
@@ -1051,9 +1031,92 @@ bool CPaint3Dlg::ClipLineMidpoint(CPoint& p1, CPoint& p2, CRect clip)
 	return false;
 }
 
+// 辅助：向量运算
+static inline double dotd(double ax, double ay, double bx, double by) { return ax * bx + ay * by; }
+struct DPoint { double x, y; DPoint(double _x = 0, double _y = 0) :x(_x), y(_y) {} };
+static inline DPoint toD(const CPoint& p) { return DPoint(p.x, p.y); }
+static inline CPoint toC(const DPoint& p) { return CPoint((int)round(p.x), (int)round(p.y)); }
+
+// 计算凸裁剪多边形是否为 CCW
+static double polygonArea(const std::vector<CPoint>& poly) {
+	double A = 0;
+	for (size_t i = 0; i < poly.size(); ++i) {
+		CPoint a = poly[i], b = poly[(i + 1) % poly.size()];
+		A += (double)a.x * b.y - (double)b.x * a.y;
+	}
+	return fabs(A * 0.5);
+}
+
+// Cyrus–Beck：p1,p2 作为引用返回裁剪后线段（若可见返回 true）
+bool CPaint3Dlg::CyrusBeckClipLine(CPoint& p1, CPoint& p2, const std::vector<CPoint>& clipPoly)
+{
+	if (clipPoly.size() < 3) return false;
+	// ensure CCW order for normals outward calc; if area < 0 then poly is CW
+	bool polyCCW = polygonArea(clipPoly) > 0;
+
+	DPoint P0 = toD(p1), P1 = toD(p2);
+	DPoint d = DPoint(P1.x - P0.x, P1.y - P0.y);
+
+	double tE = 0.0; // max entering
+	double tL = 1.0; // min leaving
+
+	size_t n = clipPoly.size();
+	for (size_t i = 0; i < n; ++i) {
+		DPoint A = toD(clipPoly[i]);
+		DPoint B = toD(clipPoly[(i + 1) % n]);
+
+		// edge vector from A to B
+		DPoint e = DPoint(B.x - A.x, B.y - A.y);
+		// outward normal n = (e.y, -e.x) if poly is CCW? For CCW, inward normal is (-e.y, e.x)
+		// We want normal pointing outward: for CCW polygon outward = ( -e.y, e.x )? let's derive:
+		// For CCW, interior is left of each edge (A->B); outward is right => normal = ( e.y, -e.x )
+		DPoint normal;
+		if (polyCCW) normal = DPoint(e.y, -e.x);
+		else normal = DPoint(-e.y, e.x);
+
+		// compute numerator and denominator: n·(A - P0) and n·d
+		double num = normal.x * (A.x - P0.x) + normal.y * (A.y - P0.y);
+		double denom = normal.x * d.x + normal.y * d.y;
+
+		if (fabs(denom) < 1e-12) {
+			// line parallel to edge
+			if (num < 0) {
+				// line is outside (pointing outside), reject
+				return false;
+			}
+			else {
+				// parallel and inside wrt this edge, continue
+				continue;
+			}
+		}
+		else {
+			double t = num / denom;
+			if (denom < 0) {
+				// potential entering
+				if (t > tE) tE = t;
+			}
+			else {
+				// denom > 0 potential leaving
+				if (t < tL) tL = t;
+			}
+			if (tE > tL) return false; // trivially reject
+		}
+	}
+
+	// if there is intersection
+	if (tE <= tL) {
+		DPoint Cp0 = DPoint(P0.x + d.x * tE, P0.y + d.y * tE);
+		DPoint Cp1 = DPoint(P0.x + d.x * tL, P0.y + d.y * tL);
+		p1 = toC(Cp0);
+		p2 = toC(Cp1);
+		return true;
+	}
+	return false;
+}
 
 void CPaint3Dlg::OnLButtonDown(UINT nFlags, CPoint point)
 {
+	SetCapture();  // 捕获鼠标
 	isDrawing = true;
 	startPoint = lastPoint = point;
 	CDialogEx::OnLButtonDown(nFlags, point);
@@ -1064,6 +1127,7 @@ void CPaint3Dlg::OnLButtonDown(UINT nFlags, CPoint point)
 		Pens.push_back(newStroke);
 		PenColors.push_back(LineColor);
 	}
+	
 }
 void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 {
@@ -1139,7 +1203,7 @@ void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 			lastArcStart = startPoint;
 			lastArcEnd = endPoint;
 		}
-		else if (Mode == 4) // Polygon
+		else if (Mode == 4) // Polygon Preview
 		{
 
 		}
@@ -1147,36 +1211,50 @@ void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 		{
 			
 		}
-		else if(Mode == 6) // Clip Line
+		else if (Mode == 6) // Clip Line Preview
 		{
-			CPoint oldP1 = startPoint;
-			CPoint oldP2 = lastPoint;
-			if (ClipLineCohenSutherland(oldP1, oldP2, clipRect))
-			{
-				dc.MoveTo(oldP1);
-				dc.LineTo(oldP2);
-			}
-			CPoint newP1 = startPoint;
-			CPoint newP2 = point;
-			if (ClipLineCohenSutherland(newP1, newP2, clipRect))
-			{
-				dc.MoveTo(newP1);
-				dc.LineTo(newP2);
-			}
+
 		}
 
 		dc.SelectObject(oldPen);
 		lastPoint = point;
 	}
 }
+void CPaint3Dlg::EraseLastPreview(CDC& dc)
+{
+	dc.SetROP2(R2_NOTXORPEN);
+	CPen pen(PS_SOLID, 1, LineColor);
+	CPen* oldPen = dc.SelectObject(&pen);
+
+	switch (Mode)
+	{
+	case 1: // Line
+		dc.MoveTo(startPoint);
+		dc.LineTo(lastPoint);
+		break;
+	case 2: // Ellipse
+		if (hasLastDrawRect)
+			dc.Ellipse(lastDrawRect);
+		break;
+	case 3: // Arc
+		if (hasLastDrawArc)
+			DrawArcPreview(lastArcAngle, lastArcDirection, lastArcStart, lastArcEnd, dc);
+		break;
+	case 6: // Clip Line
+		break;
+	}
+
+	dc.SelectObject(oldPen);
+}
 
 void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 {
+	ReleaseCapture();  // 释放捕获（在绘图区外松开鼠标也能侦测到）
 	if (isDrawing)
 	{
 		isDrawing = false;
-
 		CClientDC dc(this);
+		EraseLastPreview(dc);
 		dc.SetROP2(R2_COPYPEN);
 
 		endPoint = point;
@@ -1194,22 +1272,41 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 		}
 		else if (Mode == 1) // Line
 		{
-			Lines.push_back(make_pair(startPoint, endPoint));
-			if (Algorithm == 0) // Default line
+			bool tmp;
+			if (DefinedClipRect)
 			{
-				DrawLineDefault(startPoint, endPoint, dc);
+				//AfxMessageBox(_T("Rect Clip"));
+				tmp = ClipLineCohenSutherland(startPoint, endPoint, clipRect);
+			}	
+			else if (DefinedClipPoly)
+			{
+				//AfxMessageBox(_T("Poly Clip"));
+				tmp = CyrusBeckClipLine(startPoint, endPoint, CPolygons.back());
 			}
-			else if (Algorithm == 1) // DDA line algorithm
+			else tmp = true;
+			if (!tmp) // 完全不可见
 			{
-				DrawLineDDA(startPoint, endPoint, dc);
+				AfxMessageBox(_T("线段完全不可见，未绘制。"));
 			}
-			else if (Algorithm == 2) // Midpoint line algorithm
+			else
 			{
-				DrawLineMidpoint(startPoint, endPoint, dc);
-			}
-			else if (Algorithm == 3) // Bresenham line algorithm
-			{
-				DrawLineBresenham(startPoint, endPoint, dc);
+				Lines.push_back(make_pair(startPoint, endPoint));
+				if (Algorithm == 0) // Default line
+				{
+					DrawLineDefault(startPoint, endPoint, dc);
+				}
+				else if (Algorithm == 1) // DDA line algorithm
+				{
+					DrawLineDDA(startPoint, endPoint, dc);
+				}
+				else if (Algorithm == 2) // Midpoint line algorithm
+				{
+					DrawLineMidpoint(startPoint, endPoint, dc);
+				}
+				else if (Algorithm == 3) // Bresenham line algorithm
+				{
+					DrawLineBresenham(startPoint, endPoint, dc);
+				}
 			}
 		}
 		else if (Mode == 2)
@@ -1270,7 +1367,10 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 		}
 		else if (Mode == 4) // Polygon
 		{	
-			currentPolygon.push_back(point);
+			if (Algorithm == 8) 
+			{
+				currentPolygon.push_back(point);
+			}
 		}
 		else if (Mode == 5) // Fill
 		{
@@ -1279,21 +1379,27 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 		}
 		else if (Mode == 6) // Clip Line
 		{
-			CPoint p1 = startPoint;
-			CPoint p2 = endPoint;
-			CRect clip(100, 100, 400, 400);
-			clipRect = clip;
-			DrawLineDefault(CPoint(clipRect.left, clipRect.top), CPoint(clipRect.right, clipRect.top), dc);
-			DrawLineDefault(CPoint(clipRect.right, clipRect.top), CPoint(clipRect.right, clipRect.bottom), dc);
-			DrawLineDefault(CPoint(clipRect.right, clipRect.bottom), CPoint(clipRect.left, clipRect.bottom), dc);
-			DrawLineDefault(CPoint(clipRect.left, clipRect.bottom), CPoint(clipRect.left, clipRect.top), dc);
-			//if (ClipLineCohenSutherland(p1, p2, clipRect))
-			//{
-			//	DrawLineDefault(p1, p2, dc);
-			//}
-			if (ClipLineMidpoint(p1, p2, clipRect))
+			if (Algorithm == 9)
 			{
-				DrawLineDefault(p1, p2, dc);
+				clipRect = CRect(startPoint, point);
+				clipRect.NormalizeRect();
+				CPoint topRight(clipRect.right, clipRect.top);
+				CPoint bottomLeft(clipRect.left, clipRect.bottom);
+				DrawLineDefault(clipRect.TopLeft(), topRight, dc);
+				DrawLineDefault(topRight, clipRect.BottomRight(), dc);
+				DrawLineDefault(clipRect.BottomRight(), bottomLeft, dc);
+				DrawLineDefault(bottomLeft, clipRect.TopLeft(), dc);
+				AfxMessageBox(_T("矩形裁剪窗口已设置。"));
+				DefinedClipRect = true;
+			}
+			if (Algorithm == 10)
+			{
+				if (!isDefiningClipPoly)
+				{
+					clipPolygon.clear();
+					isDefiningClipPoly = true;
+				}
+				clipPolygon.push_back(point);
 			}
 		}
 		dc.SelectObject(oldPen);
@@ -1319,7 +1425,31 @@ void CPaint3Dlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 			dc.SelectObject(oldPen);
 		}
 	}
-
+	if (Mode == 6 && Algorithm == 10 && isDefiningClipPoly)
+	{
+		if (GetKeyState(VK_CONTROL) & 0x8000)
+		{
+			if (clipPolygon.size() >= 3)
+			{
+				CClientDC dc(this);
+				dc.SetROP2(R2_COPYPEN);
+				int penStyle = LineType ? PS_DASH : PS_SOLID;
+				LOGBRUSH logBrush = { BS_SOLID, LineColor, 0 };
+				CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, LineWidth, &logBrush);
+				CPen* oldPen = dc.SelectObject(&pen);
+				ScanConvertPolygonOutline(dc, clipPolygon, LineColor);
+				isDefiningClipPoly = false;
+				DefinedClipPoly = true;
+				CPolygons.push_back(clipPolygon);
+				clipPolygon.clear();
+				AfxMessageBox(_T("多边形裁剪窗口定义完成。"));
+			}
+			else
+			{
+				AfxMessageBox(_T("顶点数不足3，无法构成多边形！"));
+			}
+		}
+	}
 	CDialogEx::OnKeyDown(nChar, nRepCnt, nFlags);
 }
 

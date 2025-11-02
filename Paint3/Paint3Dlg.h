@@ -70,6 +70,7 @@ public:
 	COLORREF BackgroundColor = RGB(255, 255, 255); // 根据您实际背景而定
 	afx_msg void OnCbnSelchangeCombo3();
 	CComboBox m_algorithm;
+	void EraseLastPreview(CDC& dc);
 	// 画线相关算法
 	void DrawLineDefault(CPoint p1, CPoint p2, CDC& dc);
 	void DrawLineDDA(CPoint p1, CPoint p2, CDC& dc);
@@ -103,4 +104,11 @@ public:
 	CRect clipRect;
 	bool ClipLineCohenSutherland(CPoint& p1, CPoint& p2, CRect clip);
 	bool ClipLineMidpoint(CPoint &p1, CPoint &p2, CRect clip);
+	bool CyrusBeckClipLine(CPoint& p1, CPoint& p2, const std::vector<CPoint>& clipPoly);
+	std::vector<std::vector<CPoint>> CPolygons;
+	std::vector<CPoint> clipPolygon;   // 裁剪多边形的顶点
+	bool isDefiningClipRect = false;    // 是否正在定义矩形裁剪窗口
+	bool isDefiningClipPoly = false;   // 是否正在定义多边形裁剪窗口
+	bool DefinedClipRect = false; // 是否已经定义了矩形裁剪窗口
+	bool DefinedClipPoly = false; // 是否已经定义了多边形裁剪窗口
 };
