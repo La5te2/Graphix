@@ -36,6 +36,9 @@
     <ClInclude Include="std.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="LINE.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Paint3.cpp">

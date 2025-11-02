@@ -8,10 +8,11 @@
 #include "Paint3Dlg.h"
 #include "afxdialogex.h"
 #include "std.h"
+#include "LINE.h"
+#include <corecrt_math_defines.h>
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
-#include <corecrt_math_defines.h>
 using namespace std;
 
 // 用于应用程序“关于”菜单项的 CAboutDlg 对话框
@@ -139,6 +140,7 @@ BOOL CPaint3Dlg::OnInitDialog()
 	m_mode.AddString(_T("Polygon"));
 	m_mode.AddString(_T("Fill"));
 	m_mode.AddString(_T("Clip"));
+	m_mode.AddString(_T("Select"));
 	m_mode.SetCurSel(0);
 	m_algorithm.AddString(_T("Default Line"));
 	m_algorithm.AddString(_T("DDA Line Algorithm"));
@@ -151,6 +153,9 @@ BOOL CPaint3Dlg::OnInitDialog()
 	m_algorithm.AddString(_T("Default Polygon Algorithm"));
 	m_algorithm.AddString(_T("Default Clip"));
 	m_algorithm.AddString(_T("Polygon Clip"));
+	m_algorithm.AddString(_T("Translation"));
+	m_algorithm.AddString(_T("Scaling"));
+	m_algorithm.AddString(_T("Rotation"));
 	m_algorithm.SetCurSel(0);
 	UpdateData(FALSE);
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
@@ -211,162 +216,6 @@ void CPaint3Dlg::OnPaint()
 HCURSOR CPaint3Dlg::OnQueryDragIcon()
 {
 	return static_cast<HCURSOR>(m_hIcon);
-}
-
-void CPaint3Dlg::DrawLineDefault(CPoint p1, CPoint p2, CDC& dc)
-{
-	dc.MoveTo(p1);
-	dc.LineTo(p2);
-}
-
-void CPaint3Dlg::DrawLineDDA(CPoint p1, CPoint p2, CDC& dc)
-{
-	double dx = p2.x - p1.x;
-	double dy = p2.y - p1.y;
-	double steps = fabs(dx) > fabs(dy) ? fabs(dx) : fabs(dy);
-	double xInc = dx / steps;
-	double yInc = dy / steps;
-	double x = p1.x;
-	double y = p1.y;
-	int dashLength = 12; // 虚线段长度
-	int gapLength = 6; // 虚线间隔长度
-	for (int i = 0; i <= steps; ++i)
-	{
-		bool drawPixel = true;
-		if (LineType == 1) // 虚线
-		{
-			int patternLength = dashLength + gapLength;
-			int pos = i % patternLength;
-			if (pos >= dashLength) drawPixel = false;
-		}
-		if (drawPixel)
-		{
-			int halfW = max(1, LineWidth - 1) / 2;
-			for (int wx = -halfW; wx <= halfW; ++wx)
-			{
-				for (int wy = -halfW; wy <= halfW; ++wy)
-				{
-					int px = int(x + 0.5) + wx;
-					int py = int(y + 0.5) + wy;
-					dc.SetPixelV(px, py, LineColor);
-				}
-			}
-		}
-		x += xInc;
-		y += yInc;
-	}
-}
-
-void CPaint3Dlg::DrawLineMidpoint(CPoint p1, CPoint p2, CDC& dc)
-{
-	int x1 = p1.x, y1 = p1.y;
-	int x2 = p2.x, y2 = p2.y;
-	int dx = abs(x2 - x1);
-	int dy = abs(y2 - y1);
-	int sx = (x1 < x2) ? 1 : -1;
-	int sy = (y1 < y2) ? 1 : -1;
-	bool steep = dy > dx;
-	if (steep)
-	{
-		std::swap(x1, y1);
-		std::swap(x2, y2);
-		std::swap(dx, dy);
-		std::swap(sx, sy);
-	}
-	int d = 2 * dy + dx;
-	int y = y1;
-	int dashLength = 12;
-	int gapLength = 6;
-	for (int i = 0; i <= dx; ++i)
-	{
-		bool drawPixel = true;
-		if (LineType == 1) // 虚线
-		{
-			int pattern = dashLength + gapLength;
-			if ((i % pattern) >= dashLength)
-				drawPixel = false;
-		}
-		if (drawPixel)
-		{
-			int halfW = max(1, LineWidth) / 2;
-			for (int wx = -halfW; wx <= halfW; ++wx)
-			{
-				for (int wy = -halfW; wy <= halfW; ++wy)
-				{
-					if (steep)
-						dc.SetPixelV(y + wy, x1 + wx, LineColor);
-					else
-						dc.SetPixelV(x1 + wx, y + wy, LineColor);
-				}
-			}
-		}
-		if (d > 0)
-		{
-			y += sy;
-			d -= 2 * dx;
-		}
-		d += 2 * dy;
-		x1 += sx;
-	}
-}
-
-void CPaint3Dlg::DrawLineBresenham(CPoint p1, CPoint p2, CDC& dc)
-{
-	int x1 = p1.x, y1 = p1.y;
-	int x2 = p2.x, y2 = p2.y;
-
-	int dx = abs(x2 - x1);
-	int dy = abs(y2 - y1);
-	int sx = (x1 < x2) ? 1 : -1;
-	int sy = (y1 < y2) ? 1 : -1;
-
-	bool steep = dy > dx;
-	if (steep)
-	{
-		std::swap(x1, y1);
-		std::swap(x2, y2);
-		std::swap(dx, dy);
-		std::swap(sx, sy);
-	}
-
-	int err = -2 * abs(dy - dx);
-	int y = y1;
-
-	int dashLength = 6; // 实线段长度
-	int gapLength = 3;  // 虚线间隔长度
-
-	for (int i = 0; i <= dx; ++i)
-	{
-		bool drawPixel = true;
-		// 线型控制（虚线）
-		if (LineType == 1)
-		{
-			int pattern = dashLength + gapLength;
-			if ((i % pattern) >= dashLength)
-				drawPixel = false;
-		}
-		if (drawPixel)
-		{
-			int halfW = max(1, LineWidth) / 2;
-			for (int wx = -halfW; wx <= halfW; ++wx)
-			{
-				for (int wy = -halfW; wy <= halfW; ++wy)
-				{
-					if (steep)
-						dc.SetPixelV(y + wy, x1 + wx, LineColor);
-					else
-						dc.SetPixelV(x1 + wx, y + wy, LineColor);
-				}
-			}
-		}
-		if (err > 0)
-		{
-			y += sy;
-			err -= 2 * dx;
-		}
-		err += 2 * dy;
-		x1 += sx;
-	}
 }
 
 void CPaint3Dlg::DrawEllipseMidpoint(CDC& dc, const CRect& rect)
@@ -598,17 +447,6 @@ void CPaint3Dlg::DrawArc(float angle, bool direction, CPoint p1, CPoint p2, CDC&
 	// 步长计算
 	double arcLen = fabs(angle * r);
 	int steps = max(2, (int)ceil(arcLen / 0.8));
-
-	/*for (int i = 0; i <= steps; ++i) {
-		double t = (double)i / steps;
-		double theta = direction ? (startA + t * angle) : (startA - t * angle);
-		int sx = (int)round(cx + r * cos(theta));
-		int sy = (int)round(cy + r * sin(theta));
-		dc.SetPixel(sx, sy, LineColor);
-	}
-
-	dc.SetPixel(p1.x, p1.y, LineColor);
-	dc.SetPixel(p2.x, p2.y, LineColor);*/
 	for (int i = 0; i <= steps; ++i)
 	{
 		double t = (double)i / steps;
@@ -1289,20 +1127,92 @@ std::vector<CPoint> CPaint3Dlg::SutherlandHodgmanClipPolygon(const std::vector<C
 	return result;
 }
 
+bool CPaint3Dlg::IsPointNearLine(const CPoint& p, const LineObject& line)
+{
+	double x0 = p.x, y0 = p.y;
+	double x1 = line.start.x, y1 = line.start.y;
+	double x2 = line.end.x, y2 = line.end.y;
+
+	double dx = x2 - x1, dy = y2 - y1;
+	double len2 = dx * dx + dy * dy;
+	if (len2 == 0) return false; // 退化成点
+
+	double t = ((x0 - x1) * dx + (y0 - y1) * dy) / len2;
+	t = max(0.0, min(1.0, t));
+	double projX = x1 + t * dx;
+	double projY = y1 + t * dy;
+
+	double dist = sqrt((x0 - projX) * (x0 - projX) + (y0 - projY) * (y0 - projY));
+	return dist <= (line.lineWidth / 2.0 + 3.0); // 允许微小容差
+}
+
 void CPaint3Dlg::OnLButtonDown(UINT nFlags, CPoint point)
 {
 	SetCapture();  // 捕获鼠标
 	isDrawing = true;
 	startPoint = lastPoint = point;
 	CDialogEx::OnLButtonDown(nFlags, point);
-	if (Mode == 0)
+	if (Mode == 0) // Pen Mode
 	{
 		vector<CPoint> newStroke;
 		newStroke.push_back(point);
 		Pens.push_back(newStroke);
 		PenColors.push_back(LineColor);
 	}
-	
+	if (Mode == 7) // Select
+	{
+		if (Algorithm == 11)
+		{
+			lastMouse = point;
+			bool hit = false;
+
+			for (auto& line : Lines)
+			{
+				if (IsPointNearLine(point, line))
+				{
+					line.selected = true;
+					hit = true;
+				}
+			}
+
+			if (!hit)
+				AfxMessageBox(_T("未选中任何图形。"));
+			else
+			{
+				CClientDC dc(this);
+				dc.SetROP2(R2_COPYPEN);
+				Invalidate(1);
+				UpdateWindow();
+				for (auto& line : Lines)
+				{
+					int penStyle = line.lineType ? PS_DASH : PS_SOLID;
+					LOGBRUSH logBrush = { BS_SOLID, line.color, 0 };
+					CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, line.lineWidth, &logBrush);
+					CPen* oldPen = dc.SelectObject(&pen);
+					if (!line.selected)
+					{
+						if (line.algorithm == 0) // Default line
+						{
+							DrawLineDefault(line.start, line.end, dc);
+						}
+						else if (line.algorithm == 1) // DDA line algorithm
+						{
+							DrawLineDDAFM(line.start, line.end, dc, line.color, line.lineWidth, line.lineType);
+						}
+						else if (line.algorithm == 2) // Midpoint line algorithm
+						{
+							DrawLineMidpoint(line.start, line.end, dc);
+						}
+						else if (line.algorithm == 3) // Bresenham line algorithm
+						{
+							DrawLineBresenham(line.start, line.end, dc);
+						}
+					}
+					dc.SelectObject(oldPen);
+				}
+			}
+		}
+	}
 }
 void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 {
@@ -1390,7 +1300,10 @@ void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 		{
 
 		}
+		else if (Mode == 7) // Select Mode(transformation)
+		{
 
+		}
 		dc.SelectObject(oldPen);
 		lastPoint = point;
 	}
@@ -1465,14 +1378,15 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 			}
 			else
 			{
-				Lines.push_back(make_pair(startPoint, endPoint));
+				Lines.push_back({ startPoint, endPoint, LineWidth, LineType, LineColor, false, Algorithm });
 				if (Algorithm == 0) // Default line
 				{
 					DrawLineDefault(startPoint, endPoint, dc);
 				}
 				else if (Algorithm == 1) // DDA line algorithm
 				{
-					DrawLineDDA(startPoint, endPoint, dc);
+					//DrawLineDDA(startPoint, endPoint, dc);
+					DrawLineDDAFM(startPoint, endPoint, dc, LineColor, LineWidth, LineType);
 				}
 				else if (Algorithm == 2) // Midpoint line algorithm
 				{

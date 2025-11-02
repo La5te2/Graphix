@@ -41,7 +41,15 @@ protected:
 	int Algorithm = 0; 
 	// 0 Default 1 DDA 2 Bresenham 3 Midpoint 
 	// 4 Default Circle 5 Midpoint Circle 6 Bresenham Circle
-	
+	struct LineObject {
+		CPoint start;
+		CPoint end;
+		int lineWidth;
+		int lineType;
+		COLORREF color;
+		bool selected;
+		int algorithm;
+	};
 public:
 	afx_msg void OnBnClickedButton1();
 	afx_msg void OnBnClickedButton2();
@@ -53,9 +61,6 @@ public:
 	CComboBox m_fill;
 	afx_msg void OnCbnSelchangeCombo1();
 	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
-	vector<pair<CPoint, CPoint>> Lines; // 存储线条的起点和终点
-	CPoint startPoint; // 线条起点
-	CPoint endPoint;   // 线条终点
 	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
 	bool isDrawing = false;
 	CPoint lastPoint;
@@ -63,9 +68,6 @@ public:
 	afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
 	afx_msg void OnCbnSelchangeCombo2();
 	CComboBox m_mode;
-	std::vector<CRect> Ellipses;
-	CRect lastDrawRect;
-	bool hasLastDrawRect = false;
 	vector<vector<CPoint>> Pens; // 保存自由绘制的轨迹
 	vector<COLORREF> PenColors;  // 每段画笔轨迹对应颜色
 	COLORREF BackgroundColor = RGB(255, 255, 255); // 根据您实际背景而定
@@ -73,11 +75,20 @@ public:
 	CComboBox m_algorithm;
 	void EraseLastPreview(CDC& dc);
 	// 画线相关算法
+	vector<LineObject> Lines; // 存储线条的起点和终点
+	CPoint startPoint; // 线条起点
+	CPoint endPoint;   // 线条终点
+	bool isDragging = false;
+	CPoint lastMouse;
 	void DrawLineDefault(CPoint p1, CPoint p2, CDC& dc);
+	void DrawLineDDAFM(CPoint p1, CPoint p2, CDC& dc, COLORREF color, int lineWidth, int lineType);
 	void DrawLineDDA(CPoint p1, CPoint p2, CDC& dc);
 	void DrawLineMidpoint(CPoint p1, CPoint p2, CDC& dc);
 	void DrawLineBresenham(CPoint p1, CPoint p2, CDC& dc);
 	// 画圆相关算法
+	std::vector<CRect> Ellipses;
+	CRect lastDrawRect;
+	bool hasLastDrawRect = false;
 	void DrawEllipseMidpoint(CDC& dc, const CRect& rect);
 	void DrawEllipseBresenham(CDC& dc, const CRect& rect);
 	// 圆弧相关
@@ -112,4 +123,6 @@ public:
 	bool isDefiningClipPoly = false;   // 是否正在定义多边形裁剪窗口
 	bool DefinedClipRect = false; // 是否已经定义了矩形裁剪窗口
 	bool DefinedClipPoly = false; // 是否已经定义了多边形裁剪窗口
+	// 变换相关
+	bool IsPointNearLine(const CPoint& p, const LineObject& line);
 };

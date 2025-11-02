@@ -184,6 +184,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="framework.h" />
+    <ClInclude Include="LINE.h" />
     <ClInclude Include="Paint3.h" />
     <ClInclude Include="Paint3Dlg.h" />
     <ClInclude Include="pch.h" />
