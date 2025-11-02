@@ -60,6 +60,7 @@ public:
 	bool isDrawing = false;
 	CPoint lastPoint;
 	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
+	afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
 	afx_msg void OnCbnSelchangeCombo2();
 	CComboBox m_mode;
 	std::vector<CRect> Ellipses;
@@ -91,12 +92,11 @@ public:
 	void DrawArc(float angle, bool direction, CPoint p1, CPoint p2, CDC& dc);
 	void DrawArcPreview(float angle, bool direction, CPoint p1, CPoint p2, CDC& dc);
 	// 多边形相关
-	void ScanConvertPolygonOutline(CDC& dc, const std::vector<CPoint>& poly, COLORREF color);
+	void ScanConvertPolygonOutline(CDC& dc, const std::vector<CPoint>& poly, bool Clipper);
 	afx_msg void OnEnChangeEdit2();
 	vector<vector<CPoint>> Polygons;
 	vector<CPoint> currentPolygon;
 	bool isDrawingPolygon = false;
-	afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
 	// 填充相关
 	void ScanlineFill(CDC& dc, CPoint seed, COLORREF fillColor, COLORREF borderColor);
 	void ScanlineFillFM(CDC& dc, CPoint seed, COLORREF fillColor, COLORREF borderColor);
@@ -105,6 +105,7 @@ public:
 	bool ClipLineCohenSutherland(CPoint& p1, CPoint& p2, CRect clip);
 	bool ClipLineMidpoint(CPoint &p1, CPoint &p2, CRect clip);
 	bool CyrusBeckClipLine(CPoint& p1, CPoint& p2, const std::vector<CPoint>& clipPoly);
+	std::vector<CPoint> SutherlandHodgmanClipPolygon(const std::vector<CPoint>& subject, const std::vector<CPoint>& clipPoly);
 	std::vector<std::vector<CPoint>> CPolygons;
 	std::vector<CPoint> clipPolygon;   // 裁剪多边形的顶点
 	bool isDefiningClipRect = false;    // 是否正在定义矩形裁剪窗口

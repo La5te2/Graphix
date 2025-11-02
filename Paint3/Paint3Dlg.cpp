@@ -730,7 +730,7 @@ void CPaint3Dlg::DrawArcPreview(float angle, bool direction, CPoint p1, CPoint p
 	dc.AngleArc((int)round(cx), (int)round(cy), (int)round(r), (float)startDeg, (float)sweepDeg);
 }
 
-void CPaint3Dlg::ScanConvertPolygonOutline(CDC& dc, const std::vector<CPoint>& poly, COLORREF color)
+void CPaint3Dlg::ScanConvertPolygonOutline(CDC& dc, const std::vector<CPoint>& poly, bool Clipper)
 {
 	if (poly.size() < 2) return;
 	for (size_t i = 0; i < poly.size(); ++i) {
@@ -738,49 +738,154 @@ void CPaint3Dlg::ScanConvertPolygonOutline(CDC& dc, const std::vector<CPoint>& p
 		CPoint b = poly[(i + 1) % poly.size()];
 		DrawLineDefault(a, b, dc);
 	}
-	if (!IsFill) return;
+	if (!IsFill || Clipper) return;
 
 	// --- 扫描线填充算法 ---
 	// 获取多边形的 y 范围
-	int ymin = poly[0].y, ymax = poly[0].y;
-	for (const auto& p : poly) {
+	//int ymin = poly[0].y, ymax = poly[0].y;
+	//for (const auto& p : poly) {
+	//	ymin = min(ymin, p.y);
+	//	ymax = max(ymax, p.y);
+	//}
+
+	//// --- 对每条扫描线求交点 ---
+	//for (int y = ymin; y <= ymax; ++y)
+	//{
+	//	std::vector<int> xIntersections;
+
+	//	for (size_t i = 0; i < poly.size(); ++i)
+	//	{
+	//		CPoint p1 = poly[i];
+	//		CPoint p2 = poly[(i + 1) % poly.size()];
+
+	//		// 保证 p1.y <= p2.y
+	//		if (p1.y > p2.y) std::swap(p1, p2);
+
+	//		// 跳过不相交的边
+	//		if (y < p1.y || y >= p2.y) continue;
+
+	//		// 计算交点 x 坐标（线性插值）
+	//		if (p2.y != p1.y) {
+	//			double x = p1.x + (double)(y - p1.y) * (p2.x - p1.x) / (p2.y - p1.y);
+	//			xIntersections.push_back((int)round(x));
+	//		}
+	//	}
+
+	//	// --- 排序交点并两两连线 ---
+	//	std::sort(xIntersections.begin(), xIntersections.end());
+	//	for (size_t k = 0; k + 1 < xIntersections.size(); k += 2)
+	//	{
+	//		int xStart = xIntersections[k];
+	//		int xEnd = xIntersections[k + 1];
+	//		for (int x = xStart; x <= xEnd; ++x)
+	//			dc.SetPixelV(x, y, ShapeColor);
+	//	}
+	//}
+	COLORREF fillColor = ShapeColor;
+
+	// 找出 y 范围
+	int ymin = INT_MAX, ymax = INT_MIN;
+	for (auto& p : poly)
+	{
 		ymin = min(ymin, p.y);
 		ymax = max(ymax, p.y);
 	}
+	if (ymin >= ymax) return;
 
-	// --- 对每条扫描线求交点 ---
+	// 限制在客户区范围
+	CRect clientRect;
+	GetClientRect(&clientRect);
+	int width = clientRect.Width();
+	int height = clientRect.Height();
+
+	ymin = max(ymin, clientRect.top);
+	ymax = min(ymax, clientRect.bottom - 1);
+	int H = ymax - ymin + 1;
+	if (H <= 0) return;
+
+	// 建立边表 ET[y - ymin]
+	struct Edge
+	{
+		int ymax;
+		double x;
+		double invSlope;
+	};
+	std::vector<std::vector<Edge>> ET(H);
+
+	for (size_t i = 0; i < poly.size(); ++i)
+	{
+		CPoint p1 = poly[i];
+		CPoint p2 = poly[(i + 1) % poly.size()];
+		if (p1.y == p2.y) continue; // 忽略水平边
+		if (p1.y > p2.y) std::swap(p1, p2);
+
+		Edge e;
+		e.ymax = p2.y;
+		e.x = p1.x;
+		e.invSlope = double(p2.x - p1.x) / double(p2.y - p1.y);
+
+		int idx = p1.y - ymin;
+		if (idx >= 0 && idx < H) ET[idx].push_back(e);
+	}
+
+	// 创建内存位图并复制当前画面
+	CImage img;
+	img.Create(width, height, 32);
+	CDC memDC;
+	memDC.CreateCompatibleDC(&dc);
+	HBITMAP hBmp = img;
+	HGDIOBJ oldBmp = memDC.SelectObject(hBmp);
+
+	memDC.BitBlt(0, 0, width, height, &dc, 0, 0, SRCCOPY);
+
+	BYTE* bits = (BYTE*)img.GetBits();
+	int pitch = img.GetPitch();
+
+	auto setPixel = [&](int x, int y, COLORREF c) {
+		if (x < 0 || x >= width || y < 0 || y >= height) return;
+		BYTE* p = bits + (y - clientRect.top) * pitch + (x - clientRect.left) * 4;
+		p[0] = GetBValue(c);
+		p[1] = GetGValue(c);
+		p[2] = GetRValue(c);
+	};
+	std::vector<Edge> AET;
 	for (int y = ymin; y <= ymax; ++y)
 	{
-		std::vector<int> xIntersections;
+		int idx = y - ymin;
 
-		for (size_t i = 0; i < poly.size(); ++i)
+		// 加入新边
+		for (auto& e : ET[idx]) AET.push_back(e);
+
+		// 删除已到顶的边
+		AET.erase(std::remove_if(AET.begin(), AET.end(),
+			[&](const Edge& e) { return e.ymax <= y; }),
+			AET.end());
+
+		if (AET.empty()) continue;
+
+		// 按 x 排序
+		std::sort(AET.begin(), AET.end(), [](const Edge& a, const Edge& b)
+			{ return a.x < b.x; });
+
+		// 成对填充
+		for (size_t i = 0; i + 1 < AET.size(); i += 2)
 		{
-			CPoint p1 = poly[i];
-			CPoint p2 = poly[(i + 1) % poly.size()];
-
-			// 保证 p1.y <= p2.y
-			if (p1.y > p2.y) std::swap(p1, p2);
-
-			// 跳过不相交的边
-			if (y < p1.y || y >= p2.y) continue;
-
-			// 计算交点 x 坐标（线性插值）
-			if (p2.y != p1.y) {
-				double x = p1.x + (double)(y - p1.y) * (p2.x - p1.x) / (p2.y - p1.y);
-				xIntersections.push_back((int)round(x));
-			}
-		}
-
-		// --- 排序交点并两两连线 ---
-		std::sort(xIntersections.begin(), xIntersections.end());
-		for (size_t k = 0; k + 1 < xIntersections.size(); k += 2)
-		{
-			int xStart = xIntersections[k];
-			int xEnd = xIntersections[k + 1];
+			int xStart = int(ceil(AET[i].x));
+			int xEnd = int(floor(AET[i + 1].x));
 			for (int x = xStart; x <= xEnd; ++x)
-				dc.SetPixelV(x, y, ShapeColor);
+				setPixel(x, y, fillColor);
 		}
+
+		// 更新交点
+		for (auto& e : AET)
+			e.x += e.invSlope;
 	}
+
+	// 一次性绘制到屏幕
+	dc.BitBlt(clientRect.left, clientRect.top, width, height, &memDC, 0, 0, SRCCOPY);
+
+	memDC.SelectObject(oldBmp);
+	img.Destroy();
 }
 
 void CPaint3Dlg::ScanlineFill(CDC& dc, CPoint seed, COLORREF fillColor, COLORREF borderColor)
@@ -1044,7 +1149,7 @@ static double polygonArea(const std::vector<CPoint>& poly) {
 		CPoint a = poly[i], b = poly[(i + 1) % poly.size()];
 		A += (double)a.x * b.y - (double)b.x * a.y;
 	}
-	return fabs(A * 0.5);
+	return A * 0.5;
 }
 
 // Cyrus–Beck：p1,p2 作为引用返回裁剪后线段（若可见返回 true）
@@ -1112,6 +1217,76 @@ bool CPaint3Dlg::CyrusBeckClipLine(CPoint& p1, CPoint& p2, const std::vector<CPo
 		return true;
 	}
 	return false;
+}
+
+// 判断点在针对一条裁剪边的内部（假设 clip edge from A->B）
+static inline bool isInsideEdge(const DPoint& pt, const DPoint& A, const DPoint& B, bool clipIsCCW) {
+	// for edge A->B, inside is left side if clip poly is CCW
+	double cross = (B.x - A.x) * (pt.y - A.y) - (B.y - A.y) * (pt.x - A.x);
+	return clipIsCCW ? (cross >= 0) : (cross <= 0);
+}
+
+// 计算交点（直线 AB 与直线 segment S->E 的交点）
+// returns intersection in double coordinates
+static DPoint intersectLineLine(const DPoint& A, const DPoint& B, const DPoint& S, const DPoint& E) {
+	// solve A + u*(B-A) and S + t*(E-S)
+	double a1 = B.x - A.x, b1 = S.x - E.x, c1 = S.x - A.x;
+	double a2 = B.y - A.y, b2 = S.y - E.y, c2 = S.y - A.y;
+	double denom = a1 * b2 - a2 * b1;
+	if (fabs(denom) < 1e-12) return DPoint((S.x + E.x) / 2.0, (S.y + E.y) / 2.0); // parallel, fallback
+	double u = (c1 * b2 - c2 * b1) / denom;
+	return DPoint(A.x + u * (B.x - A.x), A.y + u * (B.y - A.y));
+}
+
+std::vector<CPoint> CPaint3Dlg::SutherlandHodgmanClipPolygon(const std::vector<CPoint>& subject, const std::vector<CPoint>& clipPoly)
+{
+	std::vector<DPoint> out;
+	if (subject.empty()) return {};
+	if (clipPoly.size() < 3) return {};
+
+	bool clipCCW = polygonArea(clipPoly) > 0;
+
+	// start with subject in double space
+	std::vector<DPoint> input;
+	input.reserve(subject.size());
+	for (auto& pt : subject) input.emplace_back(pt.x, pt.y);
+
+	// for each clip edge
+	size_t m = clipPoly.size();
+	for (size_t i = 0; i < m; ++i) {
+		DPoint A = toD(clipPoly[i]);
+		DPoint B = toD(clipPoly[(i + 1) % m]);
+		out.clear();
+		if (input.empty()) break;
+
+		DPoint S = input.back();
+		for (auto& E : input) {
+			bool Ein = isInsideEdge(E, A, B, clipCCW);
+			bool Sin = isInsideEdge(S, A, B, clipCCW);
+			if (Sin && Ein) {
+				// both inside -> keep E
+				out.push_back(E);
+			}
+			else if (Sin && !Ein) {
+				// leaving: add intersection
+				DPoint ip = intersectLineLine(A, B, S, E);
+				out.push_back(ip);
+			}
+			else if (!Sin && Ein) {
+				// entering: add intersection then E
+				DPoint ip = intersectLineLine(A, B, S, E);
+				out.push_back(ip);
+				out.push_back(E);
+			} // else both outside -> nothing
+			S = E;
+		}
+		input = out; // next phase
+	}
+	// convert back
+	std::vector<CPoint> result;
+	result.reserve(input.size());
+	for (auto& dpt : input) result.emplace_back((int)round(dpt.x), (int)round(dpt.y));
+	return result;
 }
 
 void CPaint3Dlg::OnLButtonDown(UINT nFlags, CPoint point)
@@ -1385,10 +1560,13 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 				clipRect.NormalizeRect();
 				CPoint topRight(clipRect.right, clipRect.top);
 				CPoint bottomLeft(clipRect.left, clipRect.bottom);
-				DrawLineDefault(clipRect.TopLeft(), topRight, dc);
-				DrawLineDefault(topRight, clipRect.BottomRight(), dc);
-				DrawLineDefault(clipRect.BottomRight(), bottomLeft, dc);
-				DrawLineDefault(bottomLeft, clipRect.TopLeft(), dc);
+				clipPolygon.clear();
+				clipPolygon.push_back(topRight);
+				clipPolygon.push_back(clipRect.TopLeft());
+				clipPolygon.push_back(bottomLeft);
+				clipPolygon.push_back(clipRect.BottomRight());
+				CPolygons.push_back(clipPolygon);
+				ScanConvertPolygonOutline(dc, clipPolygon, true);
 				AfxMessageBox(_T("矩形裁剪窗口已设置。"));
 				DefinedClipRect = true;
 			}
@@ -1411,19 +1589,32 @@ void CPaint3Dlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
 	if (Mode == 4 && nChar == VK_CONTROL) // Ctrl 键
 	{
-		if (currentPolygon.size() >= 3)
+		CClientDC dc(this);
+		dc.SetROP2(R2_COPYPEN);
+		int penStyle = LineType ? PS_DASH : PS_SOLID;
+		LOGBRUSH logBrush = { BS_SOLID, LineColor, 0 };
+		CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, LineWidth, &logBrush);
+		CPen* oldPen = dc.SelectObject(&pen);
+		std::vector<CPoint> clippedPoly;
+		if (DefinedClipPoly || DefinedClipRect)
 		{
-			CClientDC dc(this);
-			dc.SetROP2(R2_COPYPEN);
-			int penStyle = LineType ? PS_DASH : PS_SOLID;
-			LOGBRUSH logBrush = { BS_SOLID, LineColor, 0 };
-			CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, LineWidth, &logBrush);
-			CPen* oldPen = dc.SelectObject(&pen);
-			ScanConvertPolygonOutline(dc, currentPolygon, LineColor);
-			Polygons.push_back(currentPolygon);
+			//AfxMessageBox(CString(std::to_wstring(CPolygons.size()).c_str()));
+			clippedPoly = SutherlandHodgmanClipPolygon(currentPolygon, CPolygons.back());
+		}
+		else clippedPoly = currentPolygon;
+		if (clippedPoly.size() >= 3) 
+		{
+			ScanConvertPolygonOutline(dc, clippedPoly, false);
+			Polygons.push_back(clippedPoly);
 			currentPolygon.clear();
 			dc.SelectObject(oldPen);
 		}
+		else
+		{
+			AfxMessageBox(_T("顶点数不足3，裁剪后无法构成多边形！请重新输入。"));
+			currentPolygon.clear();
+		}
+		
 	}
 	if (Mode == 6 && Algorithm == 10 && isDefiningClipPoly)
 	{
@@ -1437,7 +1628,7 @@ void CPaint3Dlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 				LOGBRUSH logBrush = { BS_SOLID, LineColor, 0 };
 				CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, LineWidth, &logBrush);
 				CPen* oldPen = dc.SelectObject(&pen);
-				ScanConvertPolygonOutline(dc, clipPolygon, LineColor);
+				ScanConvertPolygonOutline(dc, clipPolygon, true);
 				isDefiningClipPoly = false;
 				DefinedClipPoly = true;
 				CPolygons.push_back(clipPolygon);
