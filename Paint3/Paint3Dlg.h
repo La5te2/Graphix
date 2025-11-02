@@ -4,6 +4,8 @@
 
 #pragma once
 #include "std.h"
+#include "afxdialogex.h"
+#include <corecrt_math_defines.h>
 using namespace std;
 
 // CPaint3Dlg 对话框
@@ -83,7 +85,9 @@ public:
 	void DrawLineDefault(CPoint p1, CPoint p2, CDC& dc);
 	void DrawLineDDAFM(CPoint p1, CPoint p2, CDC& dc, COLORREF color, int lineWidth, int lineType);
 	void DrawLineDDA(CPoint p1, CPoint p2, CDC& dc);
+	void DrawLineMidpointFM(CPoint p1, CPoint p2, CDC& dc, COLORREF color, int lineWidth, int lineType);
 	void DrawLineMidpoint(CPoint p1, CPoint p2, CDC& dc);
+	void DrawLineBresenhamFM(CPoint p1, CPoint p2, CDC& dc, COLORREF color, int lineWidth, int lineType);
 	void DrawLineBresenham(CPoint p1, CPoint p2, CDC& dc);
 	// 画圆相关算法
 	std::vector<CRect> Ellipses;

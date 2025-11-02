@@ -1177,7 +1177,7 @@ void CPaint3Dlg::OnLButtonDown(UINT nFlags, CPoint point)
 
 			if (!hit)
 				AfxMessageBox(_T("未选中任何图形。"));
-			else
+			else // test 
 			{
 				CClientDC dc(this);
 				dc.SetROP2(R2_COPYPEN);
@@ -1201,11 +1201,11 @@ void CPaint3Dlg::OnLButtonDown(UINT nFlags, CPoint point)
 						}
 						else if (line.algorithm == 2) // Midpoint line algorithm
 						{
-							DrawLineMidpoint(line.start, line.end, dc);
+							DrawLineMidpointFM(line.start, line.end, dc, line.color, line.lineWidth, line.lineType);
 						}
 						else if (line.algorithm == 3) // Bresenham line algorithm
 						{
-							DrawLineBresenham(line.start, line.end, dc);
+							DrawLineBresenhamFM(line.start, line.end, dc, line.color, line.lineWidth, line.lineType);
 						}
 					}
 					dc.SelectObject(oldPen);
@@ -1390,11 +1390,11 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 				}
 				else if (Algorithm == 2) // Midpoint line algorithm
 				{
-					DrawLineMidpoint(startPoint, endPoint, dc);
+					DrawLineMidpointFM(startPoint, endPoint, dc, LineColor, LineWidth, LineType);
 				}
 				else if (Algorithm == 3) // Bresenham line algorithm
 				{
-					DrawLineBresenham(startPoint, endPoint, dc);
+					DrawLineBresenhamFM(startPoint, endPoint, dc, LineColor, LineWidth, LineType);
 				}
 			}
 		}
