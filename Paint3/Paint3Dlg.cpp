@@ -205,6 +205,11 @@ BOOL CPaint3Dlg::PreTranslateMessage(MSG* pMsg) // 捕获键盘消息
 	{
 		OnKeyDown((UINT)pMsg->wParam, (UINT)pMsg->lParam, 0);
 	}
+	if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_RETURN)
+	{
+		// 禁止回车触发关闭
+		return TRUE;
+	}
 	return CDialogEx::PreTranslateMessage(pMsg);
 }
 void CPaint3Dlg::OnPaint()
@@ -571,11 +576,11 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 				}
 				else if (Algorithm == 5) // Midpoint Circle
 				{
-					DrawEllipseMidpoint(dc, rect);
+					DrawEllipseMidpointFM(dc, rect, LineColor, LineWidth, LineType);
 				}
 				else if (Algorithm == 6) // Bresenham Circle
 				{
-					DrawEllipseBresenham(dc, rect);
+					DrawEllipseBresenhamFM(dc, rect, LineColor, LineWidth, LineType);
 				}
 				dc.SelectObject(oldBrush);
 			}
@@ -590,7 +595,7 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 			if (Algorithm == 7) // Bresenham Arc
 			{
 				arcAngle = arcAngleDeg * M_PI / 180.0;
-				DrawArc(arcAngle, direction, startPoint, endPoint, dc);
+				DrawArcFM(arcAngle, direction, startPoint, endPoint, dc, LineColor, LineWidth, LineType);
 			}
 		}
 		else if (Mode == 4) // Polygon
@@ -783,10 +788,26 @@ void CPaint3Dlg::OnCbnSelchangeCombo3()
 }
 void CPaint3Dlg::OnEnChangeEdit1()
 {
-	UpdateData(TRUE);
+	CString text;
+	GetDlgItemText(IDC_EDIT1, text);
+
+	// 防止空字符串或非法输入导致崩溃
+	if (!text.IsEmpty())
+	{
+		LineWidth = _ttoi(text); // 字符串转整数
+		LineWidth = max(1, min(LineWidth, 20)); // 限制范围在0到20
+	}
+		
 }
 
 void CPaint3Dlg::OnEnChangeEdit2()
 {
-	UpdateData(TRUE);
+	CString text;
+	GetDlgItemText(IDC_EDIT2, text);
+	if (!text.IsEmpty())
+	{
+		arcAngleDeg = _ttoi(text);
+		arcAngleDeg = max(1, min(arcAngleDeg, 360)); // 限制范围在1到360
+	}
+		
 }

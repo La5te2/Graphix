@@ -102,7 +102,9 @@ public:
 	std::vector<CRect> Ellipses;
 	CRect lastDrawRect;
 	bool hasLastDrawRect = false;
+	void DrawEllipseMidpointFM(CDC& dc, const CRect& rect, COLORREF color, int lineWidth, int lineType);
 	void DrawEllipseMidpoint(CDC& dc, const CRect& rect);
+	void DrawEllipseBresenhamFM(CDC& dc, const CRect& rect, COLORREF color, int lineWidth, int lineType);
 	void DrawEllipseBresenham(CDC& dc, const CRect& rect);
 	// 圆弧相关
 	vector<pair<CPoint, CPoint>> Arcs; // 存储弧线的起点和终点
@@ -113,6 +115,8 @@ public:
 	bool lastArcDirection;
 	CPoint lastArcStart;
 	CPoint lastArcEnd;
+	void DrawArcFM(float angle, bool direction, CPoint p1, CPoint p2, CDC& dc,
+		COLORREF color, int lineWidth, int lineType);
 	void DrawArc(float angle, bool direction, CPoint p1, CPoint p2, CDC& dc);
 	void DrawArcPreview(float angle, bool direction, CPoint p1, CPoint p2, CDC& dc);
 	// 多边形相关
