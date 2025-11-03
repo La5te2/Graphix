@@ -184,12 +184,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="AlgMenu.h" />
+    <ClInclude Include="Clip.h" />
+    <ClInclude Include="Ellipse.h" />
     <ClInclude Include="framework.h" />
-    <ClInclude Include="LINE.h" />
+    <ClInclude Include="Line.h" />
     <ClInclude Include="Paint3.h" />
     <ClInclude Include="Paint3Dlg.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
+    <ClInclude Include="ScanLine.h" />
     <ClInclude Include="std.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>

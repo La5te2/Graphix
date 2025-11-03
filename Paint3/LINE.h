@@ -1,6 +1,26 @@
 #include"Paint3Dlg.h"
 #include "afxdialogex.h"
 #include <corecrt_math_defines.h>
+
+void CPaint3Dlg::DrawLineA(CPoint p1, CPoint p2, CDC& dc, int alg, COLORREF color, int lineWidth, int lineType)
+{
+	if (alg == 0) // Default line
+	{
+		DrawLineDefault(p1, p2, dc);
+	}
+	else if (alg == 1) // DDA line algorithm
+	{
+		DrawLineDDAFM(p1, p2, dc, color, lineWidth, lineType);
+	}
+	else if (alg == 2) // Midpoint line algorithm
+	{
+		DrawLineMidpointFM(p1, p2, dc, color, lineWidth, lineType);
+	}
+	else if (alg == 3) // Bresenham line algorithm
+	{
+		DrawLineBresenhamFM(p1, p2, dc, color, lineWidth, lineType);
+	}
+}
 void CPaint3Dlg::DrawLineDefault(CPoint p1, CPoint p2, CDC& dc)
 {
 	dc.MoveTo(p1);

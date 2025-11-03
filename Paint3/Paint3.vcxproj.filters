@@ -36,10 +36,19 @@
     <ClInclude Include="std.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="LINE.h">
+    <ClInclude Include="Line.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="AlgMenu.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Ellipse.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="ScanLine.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Clip.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

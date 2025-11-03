@@ -1,14 +1,16 @@
 ﻿
 // Paint3Dlg.cpp: 实现文件
-//
-
+// 
 #include "pch.h"
 #include "framework.h"
 #include "Paint3.h"
 #include "Paint3Dlg.h"
 #include "afxdialogex.h"
 #include "std.h"
-#include "LINE.h"
+#include "Line.h"
+#include "Ellipse.h"
+#include "ScanLine.h"
+#include "Clip.h"
 #include "AlgMenu.h"
 #include <corecrt_math_defines.h>
 #ifdef _DEBUG
@@ -202,7 +204,6 @@ BOOL CPaint3Dlg::PreTranslateMessage(MSG* pMsg) // 捕获键盘消息
 	if (pMsg->message == WM_KEYDOWN)
 	{
 		OnKeyDown((UINT)pMsg->wParam, (UINT)pMsg->lParam, 0);
-		return false;
 	}
 	return CDialogEx::PreTranslateMessage(pMsg);
 }
@@ -236,915 +237,6 @@ void CPaint3Dlg::OnPaint()
 HCURSOR CPaint3Dlg::OnQueryDragIcon()
 {
 	return static_cast<HCURSOR>(m_hIcon);
-}
-
-void CPaint3Dlg::DrawEllipseMidpoint(CDC& dc, const CRect& rect)
-{
-	int xc = (rect.left + rect.right) / 2;
-	int yc = (rect.top + rect.bottom) / 2;
-	int a = abs(rect.right - rect.left) / 2;
-	int b = abs(rect.bottom - rect.top) / 2;
-
-	double a2 = a * a;
-	double b2 = b * b;
-	double d1 = b2 - a2 * b + 0.25 * a2;
-	int x = 0;
-	int y = b;
-
-	int halfW = max(1, LineWidth) / 2;
-	int dashLength = 6;
-	int gapLength = 6;
-	int patternLength = dashLength + gapLength;
-	int step = 0;
-
-	auto drawPixel = [&](int px, int py) {
-		if (LineType == 1) // 虚线
-		{
-			int pos = step % patternLength;
-			if (pos >= dashLength) return;
-		}
-
-		for (int wx = -halfW; wx <= halfW; ++wx)
-			for (int wy = -halfW; wy <= halfW; ++wy)
-				dc.SetPixelV(px + wx, py + wy, LineColor);
-		};
-
-	long dx = 2 * b2 * x;
-	long dy = 2 * a2 * y;
-
-	while (dx < dy)
-	{
-		drawPixel(xc + x, yc + y);
-		drawPixel(xc - x, yc + y);
-		drawPixel(xc + x, yc - y);
-		drawPixel(xc - x, yc - y);
-		step++;
-
-		if (d1 < 0)
-		{
-			x++;
-			dx += 2 * b2;
-			d1 += dx + b2;
-		}
-		else
-		{
-			x++;
-			y--;
-			dx += 2 * b2;
-			dy -= 2 * a2;
-			d1 += dx - dy + b2;
-		}
-	}
-	long d2 = (long)(b2 * (x + 0.5) * (x + 0.5)
-		+ a2 * (y - 1) * (y - 1)
-		- a2 * b2);
-
-	while (y >= 0)
-	{
-		drawPixel(xc + x, yc + y);
-		drawPixel(xc - x, yc + y);
-		drawPixel(xc + x, yc - y);
-		drawPixel(xc - x, yc - y);
-		step++;
-
-		if (d2 > 0)
-		{
-			y--;
-			dy -= 2 * a2;
-			d2 += a2 - dy;
-		}
-		else
-		{
-			y--;
-			x++;
-			dx += 2 * b2;
-			dy -= 2 * a2;
-			d2 += dx - dy + a2;
-		}
-	}
-}
-void CPaint3Dlg::DrawEllipseBresenham(CDC& dc, const CRect& rect)
-{
-	// 计算椭圆的中心和半轴长度
-	int xc = (rect.left + rect.right) / 2;
-	int yc = (rect.top + rect.bottom) / 2;
-	int a = abs(rect.right - rect.left) / 2;
-	int b = abs(rect.bottom - rect.top) / 2;
-
-	// 参数合法性检查
-	if (a <= 0 || b <= 0) return;
-
-	int x = 0, y = b;
-
-	// 使用整数运算避免精度问题
-	long long a2 = 1LL * a * a;
-	long long b2 = 1LL * b * b;
-	long long d1 = b2 - a2 * b + a2 / 4;
-	long long d2;
-
-	// 绘制四对称点 + 支持线宽
-	auto plot = [&](int px, int py, int index) {
-		// 虚线控制：每隔一定像素空一段
-		if (LineType == 1 && (index / 5) % 2 == 0) return;
-
-		// 用线宽加粗：在主方向上扩展像素
-		for (int dx = -LineWidth / 2; dx <= LineWidth / 2; ++dx)
-		{
-			for (int dy = -LineWidth / 2; dy <= LineWidth / 2; ++dy)
-			{
-				dc.SetPixelV(xc + px + dx, yc + py + dy, LineColor);
-				dc.SetPixelV(xc - px + dx, yc + py + dy, LineColor);
-				dc.SetPixelV(xc + px + dx, yc - py + dy, LineColor);
-				dc.SetPixelV(xc - px + dx, yc - py + dy, LineColor);
-			}
-		}
-		};
-
-	int index = 0;
-	plot(x, y, index);
-
-	// 区域1：斜率绝对值 > 1
-	while (b2 * (x + 1) < a2 * (y - 1))
-	{
-		if (d1 < 0)
-		{
-			d1 += b2 * (2 * x + 3);
-			x++;
-		}
-		else
-		{
-			d1 += b2 * (2 * x + 3) + a2 * (-2 * y + 2);
-			x++;
-			y--;
-		}
-		++index;
-		plot(x, y, index);
-	}
-
-	// 区域2：斜率绝对值 <= 1
-	d2 = b2 * (x + 1) * (x + 1) + a2 * (y - 1) * (y - 1) - a2 * b2;
-	while (y > 0)
-	{
-		if (d2 < 0)
-		{
-			d2 += b2 * (2 * x + 2) + a2 * (-2 * y + 3);
-			x++;
-			y--;
-		}
-		else
-		{
-			d2 += a2 * (-2 * y + 3);
-			y--;
-		}
-		++index;
-		plot(x, y, index);
-	}
-}
-
-void CPaint3Dlg::DrawArc(float angle, bool direction, CPoint p1, CPoint p2, CDC& dc)
-{
-	if (fabs(angle) < 1e-6) {
-		dc.SetPixel(p1.x, p1.y, LineColor);
-		return;
-	}
-
-	double x1 = p1.x, y1 = p1.y;
-	double x2 = p2.x, y2 = p2.y;
-	double dx = x2 - x1, dy = y2 - y1;
-	double d = sqrt(dx * dx + dy * dy);
-	if (d < 1e-6) return;
-
-	double halfAngle = fabs(angle) / 2.0;
-	double r = (d / 2.0) / sin(halfAngle);
-	double h = sqrt(max(0.0, r * r - (d / 2.0) * (d / 2.0)));
-
-	// 中点与垂线方向
-	double mx = (x1 + x2) / 2.0;
-	double my = (y1 + y2) / 2.0;
-	double ux = -dy / d, uy = dx / d;
-
-	// 候选圆心
-	double cx1 = mx + ux * h;
-	double cy1 = my + uy * h;
-	double cx2 = mx - ux * h;
-	double cy2 = my - uy * h;
-
-	auto arcSpan = [&](double cx, double cy) {
-		double a1 = atan2(y1 - cy, x1 - cx);
-		double a2 = atan2(y2 - cy, x2 - cx);
-		double da = a2 - a1;
-		if (da < 0) da += 2 * M_PI;
-		return da; // CCW span from p1 to p2 in [0, 2PI)
-		};
-
-	double span1 = arcSpan(cx1, cy1);
-	double span2 = arcSpan(cx2, cy2);
-
-	// 目标弧长（按正方向），规范到 [0, 2PI)
-	double target = fmod(fabs(angle), 2 * M_PI);
-	if (target < 0) target += 2 * M_PI;
-	double desiredSpan;
-	if (direction) {
-		// 逆时针 -> 直接和 target 比
-		desiredSpan = target;
-	}
-	else {
-		// 顺时针 -> 要比较的是 2PI - target（对应的 CCW 跨度应接近 2PI - target）
-		desiredSpan = fmod(2 * M_PI - target, 2 * M_PI);
-	}
-
-	double diff1 = fabs(span1 - desiredSpan);
-	double diff2 = fabs(span2 - desiredSpan);
-
-	double cx, cy;
-	if (diff1 < diff2)
-		cx = cx1, cy = cy1;
-	else
-		cx = cx2, cy = cy2;
-
-	// 根据 direction 决定绘制方向
-	double startA = atan2(y1 - cy, x1 - cx);
-	// 步长计算
-	double arcLen = fabs(angle * r);
-	int steps = max(2, (int)ceil(arcLen / 0.8));
-	for (int i = 0; i <= steps; ++i)
-	{
-		double t = (double)i / steps;
-		double theta = direction ? (startA + t * angle) : (startA - t * angle);
-		int sx = (int)round(cx + r * cos(theta));
-		int sy = (int)round(cy + r * sin(theta));
-		bool drawPixel = true;
-		if (LineType == 1) // 虚线
-		{
-			const int dashLength = max(2, LineWidth * 4);
-			const int gapLength = max(2, LineWidth * 2);
-			int patternLength = dashLength + gapLength;
-			int patternPos = i % patternLength;
-			drawPixel = (patternPos < dashLength);
-		}
-		if (drawPixel)
-		{
-			int radius = max(1, LineWidth / 2);
-			for (int dx = -radius; dx <= radius; ++dx)
-			{
-				for (int dy = -radius; dy <= radius; ++dy)
-				{
-					if (dx * dx + dy * dy <= radius * radius)
-					{
-						dc.SetPixelV(sx + dx, sy + dy, LineColor);
-					}
-				}
-			}
-		}
-	}
-
-	// 确保端点也绘制
-	int radius = max(1, LineWidth / 2);
-	for (int dx = -radius; dx <= radius; ++dx)
-	{
-		for (int dy = -radius; dy <= radius; ++dy)
-		{
-			if (dx * dx + dy * dy <= radius * radius)
-			{
-				dc.SetPixelV(p1.x + dx, p1.y + dy, LineColor);
-				dc.SetPixelV(p2.x + dx, p2.y + dy, LineColor);
-			}
-		}
-	}
-}
-void CPaint3Dlg::DrawArcPreview(float angle, bool direction, CPoint p1, CPoint p2, CDC& dc)
-{
-	if (fabs(angle) < 1e-6) {
-		dc.MoveTo(p1);
-		dc.LineTo(p2);
-		return;
-	}
-
-	double x1 = p1.x, y1 = p1.y;
-	double x2 = p2.x, y2 = p2.y;
-	double dx = x2 - x1, dy = y2 - y1;
-	double d = sqrt(dx * dx + dy * dy);
-	if (d < 1e-6) return;
-
-	double halfAngle = fabs(angle) / 2.0;
-	double r = (d / 2.0) / sin(halfAngle);
-	double h = sqrt(max(0.0, r * r - (d / 2.0) * (d / 2.0)));
-
-	// 中点与垂线方向
-	double mx = (x1 + x2) / 2.0;
-	double my = (y1 + y2) / 2.0;
-	double ux = -dy / d, uy = dx / d;
-
-	// 候选圆心
-	double cx1 = mx + ux * h;
-	double cy1 = my + uy * h;
-	double cx2 = mx - ux * h;
-	double cy2 = my - uy * h;
-
-	auto arcSpan = [&](double cx, double cy) {
-		double a1 = atan2(y1 - cy, x1 - cx);
-		double a2 = atan2(y2 - cy, x2 - cx);
-		double da = a2 - a1;
-		if (da < 0) da += 2 * M_PI;
-		return da; // CCW span
-		};
-
-	// CCW跨度
-	double span1 = arcSpan(cx1, cy1);
-	double span2 = arcSpan(cx2, cy2);
-
-	// 目标弧度长度
-	double target = fmod(fabs(angle), 2 * M_PI);
-	if (target < 0) target += 2 * M_PI;
-
-	// 根据方向调整比较的跨度
-	double desiredSpan;
-	if (direction) {
-		desiredSpan = target; // 逆时针
-	}
-	else {
-		desiredSpan = fmod(2 * M_PI - target, 2 * M_PI); // 顺时针
-	}
-
-	// 选出合适圆心
-	double diff1 = fabs(span1 - desiredSpan);
-	double diff2 = fabs(span2 - desiredSpan);
-	double cx, cy;
-	if (diff1 < diff2)
-		cx = cx1, cy = cy1;
-	else
-		cx = cx2, cy = cy2;
-
-	// 计算实际起始角度（数学坐标系下，逆时针为正）
-	double startRad = atan2(y1 - cy, x1 - cx);
-	double sweepRad = direction ? angle : -angle;
-
-	double startDeg = -startRad * 180.0 / M_PI;
-	double sweepDeg = -sweepRad * 180.0 / M_PI;
-
-	double sx = cx + r * cos(startRad);
-	double sy = cy + r * sin(startRad);
-	dc.MoveTo((int)round(sx), (int)round(sy));
-	dc.AngleArc((int)round(cx), (int)round(cy), (int)round(r), (float)startDeg, (float)sweepDeg);
-}
-
-void CPaint3Dlg::ScanConvertPolygonOutline(CDC& dc, const std::vector<CPoint>& poly, bool Clipper)
-{
-	if (poly.size() < 2) return;
-	for (size_t i = 0; i < poly.size(); ++i) {
-		CPoint a = poly[i];
-		CPoint b = poly[(i + 1) % poly.size()];
-		DrawLineDefault(a, b, dc);
-	}
-	if (!IsFill || Clipper) return;
-
-	// --- 扫描线填充算法 ---
-	// 获取多边形的 y 范围
-	//int ymin = poly[0].y, ymax = poly[0].y;
-	//for (const auto& p : poly) {
-	//	ymin = min(ymin, p.y);
-	//	ymax = max(ymax, p.y);
-	//}
-
-	//// --- 对每条扫描线求交点 ---
-	//for (int y = ymin; y <= ymax; ++y)
-	//{
-	//	std::vector<int> xIntersections;
-
-	//	for (size_t i = 0; i < poly.size(); ++i)
-	//	{
-	//		CPoint p1 = poly[i];
-	//		CPoint p2 = poly[(i + 1) % poly.size()];
-
-	//		// 保证 p1.y <= p2.y
-	//		if (p1.y > p2.y) std::swap(p1, p2);
-
-	//		// 跳过不相交的边
-	//		if (y < p1.y || y >= p2.y) continue;
-
-	//		// 计算交点 x 坐标（线性插值）
-	//		if (p2.y != p1.y) {
-	//			double x = p1.x + (double)(y - p1.y) * (p2.x - p1.x) / (p2.y - p1.y);
-	//			xIntersections.push_back((int)round(x));
-	//		}
-	//	}
-
-	//	// --- 排序交点并两两连线 ---
-	//	std::sort(xIntersections.begin(), xIntersections.end());
-	//	for (size_t k = 0; k + 1 < xIntersections.size(); k += 2)
-	//	{
-	//		int xStart = xIntersections[k];
-	//		int xEnd = xIntersections[k + 1];
-	//		for (int x = xStart; x <= xEnd; ++x)
-	//			dc.SetPixelV(x, y, ShapeColor);
-	//	}
-	//}
-	COLORREF fillColor = ShapeColor;
-
-	// 找出 y 范围
-	int ymin = INT_MAX, ymax = INT_MIN;
-	for (auto& p : poly)
-	{
-		ymin = min(ymin, p.y);
-		ymax = max(ymax, p.y);
-	}
-	if (ymin >= ymax) return;
-
-	// 限制在客户区范围
-	CRect clientRect;
-	GetClientRect(&clientRect);
-	int width = clientRect.Width();
-	int height = clientRect.Height();
-
-	ymin = max(ymin, clientRect.top);
-	ymax = min(ymax, clientRect.bottom - 1);
-	int H = ymax - ymin + 1;
-	if (H <= 0) return;
-
-	// 建立边表 ET[y - ymin]
-	struct Edge
-	{
-		int ymax;
-		double x;
-		double invSlope;
-	};
-	std::vector<std::vector<Edge>> ET(H);
-
-	for (size_t i = 0; i < poly.size(); ++i)
-	{
-		CPoint p1 = poly[i];
-		CPoint p2 = poly[(i + 1) % poly.size()];
-		if (p1.y == p2.y) continue; // 忽略水平边
-		if (p1.y > p2.y) std::swap(p1, p2);
-
-		Edge e;
-		e.ymax = p2.y;
-		e.x = p1.x;
-		e.invSlope = double(p2.x - p1.x) / double(p2.y - p1.y);
-
-		int idx = p1.y - ymin;
-		if (idx >= 0 && idx < H) ET[idx].push_back(e);
-	}
-
-	// 创建内存位图并复制当前画面
-	CImage img;
-	img.Create(width, height, 32);
-	CDC memDC;
-	memDC.CreateCompatibleDC(&dc);
-	HBITMAP hBmp = img;
-	HGDIOBJ oldBmp = memDC.SelectObject(hBmp);
-
-	memDC.BitBlt(0, 0, width, height, &dc, 0, 0, SRCCOPY);
-
-	BYTE* bits = (BYTE*)img.GetBits();
-	int pitch = img.GetPitch();
-
-	auto setPixel = [&](int x, int y, COLORREF c) {
-		if (x < 0 || x >= width || y < 0 || y >= height) return;
-		BYTE* p = bits + (y - clientRect.top) * pitch + (x - clientRect.left) * 4;
-		p[0] = GetBValue(c);
-		p[1] = GetGValue(c);
-		p[2] = GetRValue(c);
-		};
-	std::vector<Edge> AET;
-	for (int y = ymin; y <= ymax; ++y)
-	{
-		int idx = y - ymin;
-
-		// 加入新边
-		for (auto& e : ET[idx]) AET.push_back(e);
-
-		// 删除已到顶的边
-		AET.erase(std::remove_if(AET.begin(), AET.end(),
-			[&](const Edge& e) { return e.ymax <= y; }),
-			AET.end());
-
-		if (AET.empty()) continue;
-
-		// 按 x 排序
-		std::sort(AET.begin(), AET.end(), [](const Edge& a, const Edge& b)
-			{ return a.x < b.x; });
-
-		// 成对填充
-		for (size_t i = 0; i + 1 < AET.size(); i += 2)
-		{
-			int xStart = int(ceil(AET[i].x));
-			int xEnd = int(floor(AET[i + 1].x));
-			for (int x = xStart; x <= xEnd; ++x)
-				setPixel(x, y, fillColor);
-		}
-
-		// 更新交点
-		for (auto& e : AET)
-			e.x += e.invSlope;
-	}
-
-	// 一次性绘制到屏幕
-	dc.BitBlt(clientRect.left, clientRect.top, width, height, &memDC, 0, 0, SRCCOPY);
-
-	memDC.SelectObject(oldBmp);
-	img.Destroy();
-}
-
-void CPaint3Dlg::ScanlineFill(CDC& dc, CPoint seed, COLORREF fillColor, COLORREF borderColor)
-{
-	CClientDC clientDC(this);
-	COLORREF targetColor = clientDC.GetPixel(seed); // 原始颜色
-
-	if (targetColor == fillColor || targetColor == borderColor)
-		return; // 已填充或边界
-
-	std::stack<CPoint> stk;
-	stk.push(seed);
-
-	while (!stk.empty())
-	{
-		CPoint p = stk.top();
-		stk.pop();
-
-		int x = p.x;
-		int y = p.y;
-
-		// 向左扫描
-		int xLeft = x;
-		while (xLeft >= 0 && clientDC.GetPixel(xLeft, y) == targetColor)
-			--xLeft;
-		++xLeft; // 回到第一个可填充点
-
-		// 向右扫描
-		int xRight = x;
-		while (clientDC.GetPixel(xRight, y) == targetColor)
-			++xRight;
-		--xRight; // 回到最后一个可填充点
-
-		// 填充该行
-		for (int xi = xLeft; xi <= xRight; ++xi)
-			clientDC.SetPixelV(xi, y, fillColor);
-
-		// 将上下行的未填充点压栈
-		for (int xi = xLeft; xi <= xRight; ++xi)
-		{
-			// 上行
-			if (y > 0 && clientDC.GetPixel(xi, y - 1) == targetColor)
-				stk.push(CPoint(xi, y - 1));
-			// 下行
-			if (y < GetSystemMetrics(SM_CYSCREEN) - 1 && clientDC.GetPixel(xi, y + 1) == targetColor)
-				stk.push(CPoint(xi, y + 1));
-		}
-	}
-}
-void CPaint3Dlg::ScanlineFillFM(CDC& dc, CPoint seed, COLORREF fillColor, COLORREF borderColor)
-{
-	CRect clientRect;
-	GetClientRect(&clientRect);
-	int width = clientRect.Width();
-	int height = clientRect.Height();
-
-	// 创建内存位图
-	CImage img;
-	img.Create(width, height, 32); // 32位 ARGB
-
-	// 内存DC
-	CDC memDC;
-	memDC.CreateCompatibleDC(&dc);
-
-	// CImage 转为 HBITMAP
-	HBITMAP hBmp = img;
-	HGDIOBJ hOldBmp = memDC.SelectObject(hBmp);
-
-	// 将窗口内容复制到内存
-	memDC.BitBlt(0, 0, width, height, &dc, 0, 0, SRCCOPY);
-
-	// 获取像素指针
-	BYTE* pBits = (BYTE*)img.GetBits();
-	int stride = img.GetPitch();
-
-	auto getPixel = [&](int x, int y) -> COLORREF {
-		BYTE* p = pBits + y * stride + x * 4;
-		return RGB(p[2], p[1], p[0]);
-		};
-
-	COLORREF targetColor = getPixel(seed.x, seed.y);
-	if (targetColor == fillColor || targetColor == borderColor)
-	{
-		memDC.SelectObject(hOldBmp);
-		return;
-	}
-
-	// 扫描线填充
-	auto setPixel = [&](int x, int y, COLORREF color) {
-		BYTE* p = pBits + y * stride + x * 4;
-		p[0] = GetBValue(color);
-		p[1] = GetGValue(color);
-		p[2] = GetRValue(color);
-		};
-	std::stack<CPoint> stk;
-	stk.push(seed);
-	while (!stk.empty())
-	{
-		CPoint p = stk.top();
-		stk.pop();
-
-		int y = p.y;
-		int x = p.x;
-
-		int xLeft = x;
-		while (xLeft >= 0 && getPixel(xLeft, y) == targetColor) --xLeft;
-		++xLeft;
-
-		int xRight = x;
-		while (xRight < width && getPixel(xRight, y) == targetColor) ++xRight;
-		--xRight;
-
-		for (int xi = xLeft; xi <= xRight; ++xi)
-			setPixel(xi, y, fillColor);
-
-		for (int xi = xLeft; xi <= xRight; ++xi)
-		{
-			if (y > 0 && getPixel(xi, y - 1) == targetColor)
-				stk.push(CPoint(xi, y - 1));
-			if (y < height - 1 && getPixel(xi, y + 1) == targetColor)
-				stk.push(CPoint(xi, y + 1));
-		}
-	}
-
-	// 将内存位图绘制回窗口
-	dc.BitBlt(0, 0, width, height, &memDC, 0, 0, SRCCOPY);
-
-	memDC.SelectObject(hOldBmp);
-	img.Destroy();
-}
-
-enum OutCode { INSIDE = 0, LEFT = 1, RIGHT = 2, BOTTOM = 4, TOP = 8 };
-
-OutCode ComputeOutCode(CPoint p, CRect clip)
-{
-	OutCode code = INSIDE;
-	if (p.x < clip.left) code = (OutCode)(code | LEFT);
-	else if (p.x > clip.right) code = (OutCode)(code | RIGHT);
-	if (p.y < clip.top) code = (OutCode)(code | TOP);
-	else if (p.y > clip.bottom) code = (OutCode)(code | BOTTOM);
-	return code;
-}
-
-bool CPaint3Dlg::ClipLineCohenSutherland(CPoint& p1, CPoint& p2, CRect clip)
-{
-	OutCode out1 = ComputeOutCode(p1, clip);
-	OutCode out2 = ComputeOutCode(p2, clip);
-
-	while (true)
-	{
-		if (!(out1 | out2)) return true; // 全可见
-		if (out1 & out2) return false;   // 完全不可见
-
-		CPoint p;
-		OutCode outOut = out1 ? out1 : out2;
-
-		if (outOut & TOP)
-		{
-			p.x = p1.x + (p2.x - p1.x) * (clip.top - p1.y) / (p2.y - p1.y);
-			p.y = clip.top;
-		}
-		else if (outOut & BOTTOM)
-		{
-			p.x = p1.x + (p2.x - p1.x) * (clip.bottom - p1.y) / (p2.y - p1.y);
-			p.y = clip.bottom;
-		}
-		else if (outOut & RIGHT)
-		{
-			p.y = p1.y + (p2.y - p1.y) * (clip.right - p1.x) / (p2.x - p1.x);
-			p.x = clip.right;
-		}
-		else if (outOut & LEFT)
-		{
-			p.y = p1.y + (p2.y - p1.y) * (clip.left - p1.x) / (p2.x - p1.x);
-			p.x = clip.left;
-		}
-
-		if (outOut == out1) { p1 = p; out1 = ComputeOutCode(p1, clip); }
-		else { p2 = p; out2 = ComputeOutCode(p2, clip); }
-	}
-}
-
-
-bool CPaint3Dlg::ClipLineMidpoint(CPoint& p1, CPoint& p2, CRect clip)
-{
-	auto isInside = [&](CPoint p) {
-		return clip.PtInRect(p) != FALSE;
-		};
-
-	// 两端都在内部
-	if (isInside(p1) && isInside(p2))
-		return true;
-
-	// 两端都在外部并在矩形同侧（快速拒绝）
-	if ((p1.x < clip.left && p2.x < clip.left) ||
-		(p1.x > clip.right && p2.x > clip.right) ||
-		(p1.y < clip.top && p2.y < clip.top) ||
-		(p1.y > clip.bottom && p2.y > clip.bottom))
-		return false;
-
-	// 递归停止条件
-	if (abs(p1.x - p2.x) <= 1 && abs(p1.y - p2.y) <= 1)
-	{
-		// 若有一点在内部则保留
-		if (isInside(p1) || isInside(p2))
-		{
-			// 调整到最近的内部点
-			if (!isInside(p1)) {
-				if (p1.x < clip.left) p1.x = clip.left;
-				if (p1.x > clip.right) p1.x = clip.right;
-				if (p1.y < clip.top) p1.y = clip.top;
-				if (p1.y > clip.bottom) p1.y = clip.bottom;
-			}
-			if (!isInside(p2)) {
-				if (p2.x < clip.left) p2.x = clip.left;
-				if (p2.x > clip.right) p2.x = clip.right;
-				if (p2.y < clip.top) p2.y = clip.top;
-				if (p2.y > clip.bottom) p2.y = clip.bottom;
-			}
-			return true;
-		}
-		return false;
-	}
-
-	// 计算中点
-	CPoint mid((p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
-
-	bool left = ClipLineMidpoint(p1, mid, clip);
-	bool right = ClipLineMidpoint(mid, p2, clip);
-
-	if (left && right)
-	{
-		// 找到两段都在可见区的交界中点
-		p1 = p1;
-		p2 = p2;
-		return true;
-	}
-	else if (left)
-	{
-		p2 = mid;
-		return true;
-	}
-	else if (right)
-	{
-		p1 = mid;
-		return true;
-	}
-	return false;
-}
-
-// 辅助：向量运算
-static inline double dotd(double ax, double ay, double bx, double by) { return ax * bx + ay * by; }
-struct DPoint { double x, y; DPoint(double _x = 0, double _y = 0) :x(_x), y(_y) {} };
-static inline DPoint toD(const CPoint& p) { return DPoint(p.x, p.y); }
-static inline CPoint toC(const DPoint& p) { return CPoint((int)round(p.x), (int)round(p.y)); }
-
-// 计算凸裁剪多边形是否为 CCW
-static double polygonArea(const std::vector<CPoint>& poly) {
-	double A = 0;
-	for (size_t i = 0; i < poly.size(); ++i) {
-		CPoint a = poly[i], b = poly[(i + 1) % poly.size()];
-		A += (double)a.x * b.y - (double)b.x * a.y;
-	}
-	return A * 0.5;
-}
-
-// Cyrus–Beck：p1,p2 作为引用返回裁剪后线段（若可见返回 true）
-bool CPaint3Dlg::CyrusBeckClipLine(CPoint& p1, CPoint& p2, const std::vector<CPoint>& clipPoly)
-{
-	if (clipPoly.size() < 3) return false;
-	// ensure CCW order for normals outward calc; if area < 0 then poly is CW
-	bool polyCCW = polygonArea(clipPoly) > 0;
-
-	DPoint P0 = toD(p1), P1 = toD(p2);
-	DPoint d = DPoint(P1.x - P0.x, P1.y - P0.y);
-
-	double tE = 0.0; // max entering
-	double tL = 1.0; // min leaving
-
-	size_t n = clipPoly.size();
-	for (size_t i = 0; i < n; ++i) {
-		DPoint A = toD(clipPoly[i]);
-		DPoint B = toD(clipPoly[(i + 1) % n]);
-
-		// edge vector from A to B
-		DPoint e = DPoint(B.x - A.x, B.y - A.y);
-		// outward normal n = (e.y, -e.x) if poly is CCW? For CCW, inward normal is (-e.y, e.x)
-		// We want normal pointing outward: for CCW polygon outward = ( -e.y, e.x )? let's derive:
-		// For CCW, interior is left of each edge (A->B); outward is right => normal = ( e.y, -e.x )
-		DPoint normal;
-		if (polyCCW) normal = DPoint(e.y, -e.x);
-		else normal = DPoint(-e.y, e.x);
-
-		// compute numerator and denominator: n·(A - P0) and n·d
-		double num = normal.x * (A.x - P0.x) + normal.y * (A.y - P0.y);
-		double denom = normal.x * d.x + normal.y * d.y;
-
-		if (fabs(denom) < 1e-12) {
-			// line parallel to edge
-			if (num < 0) {
-				// line is outside (pointing outside), reject
-				return false;
-			}
-			else {
-				// parallel and inside wrt this edge, continue
-				continue;
-			}
-		}
-		else {
-			double t = num / denom;
-			if (denom < 0) {
-				// potential entering
-				if (t > tE) tE = t;
-			}
-			else {
-				// denom > 0 potential leaving
-				if (t < tL) tL = t;
-			}
-			if (tE > tL) return false; // trivially reject
-		}
-	}
-
-	// if there is intersection
-	if (tE <= tL) {
-		DPoint Cp0 = DPoint(P0.x + d.x * tE, P0.y + d.y * tE);
-		DPoint Cp1 = DPoint(P0.x + d.x * tL, P0.y + d.y * tL);
-		p1 = toC(Cp0);
-		p2 = toC(Cp1);
-		return true;
-	}
-	return false;
-}
-
-// 判断点在针对一条裁剪边的内部（假设 clip edge from A->B）
-static inline bool isInsideEdge(const DPoint& pt, const DPoint& A, const DPoint& B, bool clipIsCCW) {
-	// for edge A->B, inside is left side if clip poly is CCW
-	double cross = (B.x - A.x) * (pt.y - A.y) - (B.y - A.y) * (pt.x - A.x);
-	return clipIsCCW ? (cross >= 0) : (cross <= 0);
-}
-
-// 计算交点（直线 AB 与直线 segment S->E 的交点）
-// returns intersection in double coordinates
-static DPoint intersectLineLine(const DPoint& A, const DPoint& B, const DPoint& S, const DPoint& E) {
-	// solve A + u*(B-A) and S + t*(E-S)
-	double a1 = B.x - A.x, b1 = S.x - E.x, c1 = S.x - A.x;
-	double a2 = B.y - A.y, b2 = S.y - E.y, c2 = S.y - A.y;
-	double denom = a1 * b2 - a2 * b1;
-	if (fabs(denom) < 1e-12) return DPoint((S.x + E.x) / 2.0, (S.y + E.y) / 2.0); // parallel, fallback
-	double u = (c1 * b2 - c2 * b1) / denom;
-	return DPoint(A.x + u * (B.x - A.x), A.y + u * (B.y - A.y));
-}
-
-std::vector<CPoint> CPaint3Dlg::SutherlandHodgmanClipPolygon(const std::vector<CPoint>& subject, const std::vector<CPoint>& clipPoly)
-{
-	std::vector<DPoint> out;
-	if (subject.empty()) return {};
-	if (clipPoly.size() < 3) return {};
-
-	bool clipCCW = polygonArea(clipPoly) > 0;
-
-	// start with subject in double space
-	std::vector<DPoint> input;
-	input.reserve(subject.size());
-	for (auto& pt : subject) input.emplace_back(pt.x, pt.y);
-
-	// for each clip edge
-	size_t m = clipPoly.size();
-	for (size_t i = 0; i < m; ++i) {
-		DPoint A = toD(clipPoly[i]);
-		DPoint B = toD(clipPoly[(i + 1) % m]);
-		out.clear();
-		if (input.empty()) break;
-
-		DPoint S = input.back();
-		for (auto& E : input) {
-			bool Ein = isInsideEdge(E, A, B, clipCCW);
-			bool Sin = isInsideEdge(S, A, B, clipCCW);
-			if (Sin && Ein) {
-				// both inside -> keep E
-				out.push_back(E);
-			}
-			else if (Sin && !Ein) {
-				// leaving: add intersection
-				DPoint ip = intersectLineLine(A, B, S, E);
-				out.push_back(ip);
-			}
-			else if (!Sin && Ein) {
-				// entering: add intersection then E
-				DPoint ip = intersectLineLine(A, B, S, E);
-				out.push_back(ip);
-				out.push_back(E);
-			} // else both outside -> nothing
-			S = E;
-		}
-		input = out; // next phase
-	}
-	// convert back
-	std::vector<CPoint> result;
-	result.reserve(input.size());
-	for (auto& dpt : input) result.emplace_back((int)round(dpt.x), (int)round(dpt.y));
-	return result;
 }
 
 bool CPaint3Dlg::IsPointNearLine(const CPoint& p, const LineObject& line)
@@ -1183,12 +275,11 @@ void CPaint3Dlg::OnLButtonDown(UINT nFlags, CPoint point)
 	{
 		if (Algorithm == 11)
 		{
-			lastMouse = point;
 			bool hit = false;
 
 			for (auto& line : Lines)
 			{
-				if (IsPointNearLine(point, line))
+				if (line.visible && IsPointNearLine(point, line))
 				{
 					line.selected = true;
 					hit = true;
@@ -1211,25 +302,13 @@ void CPaint3Dlg::OnLButtonDown(UINT nFlags, CPoint point)
 					CPen* oldPen = dc.SelectObject(&pen);
 					if (!line.selected)
 					{
-						if (line.algorithm == 0) // Default line
-						{
-							DrawLineDefault(line.start, line.end, dc);
-						}
-						else if (line.algorithm == 1) // DDA line algorithm
-						{
-							DrawLineDDAFM(line.start, line.end, dc, line.color, line.lineWidth, line.lineType);
-						}
-						else if (line.algorithm == 2) // Midpoint line algorithm
-						{
-							DrawLineMidpointFM(line.start, line.end, dc, line.color, line.lineWidth, line.lineType);
-						}
-						else if (line.algorithm == 3) // Bresenham line algorithm
-						{
-							DrawLineBresenhamFM(line.start, line.end, dc, line.color, line.lineWidth, line.lineType);
-						}
+						DrawLineA(line.start, line.end, dc, line.algorithm, line.color, line.lineWidth, line.lineType);
 					}
 					dc.SelectObject(oldPen);
 				}
+				// 如果选中了，准备拖动
+				isDragging = true;
+				dragStart = point;
 			}
 		}
 	}
@@ -1241,26 +320,41 @@ void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 		CClientDC dc(this);
 		dc.SetROP2(R2_NOTXORPEN);
 
-		CPen pen(PS_SOLID, 1, LineColor);
-		CPen* oldPen = dc.SelectObject(&pen);
+		/*CPen pen(PS_SOLID, 1, LineColor);
+		CPen* oldPen = dc.SelectObject(&pen);*/
 
 		if (Mode == 0)
 		{
+			int penStyle = LineType ? PS_DASH : PS_SOLID;
+			LOGBRUSH logBrush = { BS_SOLID, LineColor, 0 };
+			CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, LineWidth, &logBrush);
+			CPen* oldPen = dc.SelectObject(&pen);
+			dc.SetROP2(R2_COPYPEN);
 			Pens.back().push_back(point);
 			dc.MoveTo(lastPoint);
 			dc.LineTo(point);
+			dc.SelectObject(oldPen);
 		}
 
 		else if (Mode == 1) // Line
 		{
+			int penStyle = LineType ? PS_DASH : PS_SOLID;
+			LOGBRUSH logBrush = { BS_SOLID, LineColor, 0 };
+			CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, LineWidth, &logBrush);
+			CPen* oldPen = dc.SelectObject(&pen);
 			dc.MoveTo(startPoint);
 			dc.LineTo(lastPoint);
 
 			dc.MoveTo(startPoint);
 			dc.LineTo(point);
+			dc.SelectObject(oldPen);
 		}
 		else if (Mode == 2)
 		{
+			int penStyle = LineType ? PS_DASH : PS_SOLID;
+			LOGBRUSH logBrush = { BS_SOLID, LineColor, 0 };
+			CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, LineWidth, &logBrush);
+			CPen* oldPen = dc.SelectObject(&pen);
 			// 擦除旧图形
 			if (hasLastDrawRect)
 				dc.Ellipse(lastDrawRect);
@@ -1285,10 +379,15 @@ void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 			// 保存本次真实绘制形状
 			lastDrawRect = newRect;
 			hasLastDrawRect = true;
+			dc.SelectObject(oldPen);
 		}
 
 		else if (Mode == 3) // Arc Preview
 		{
+			int penStyle = LineType ? PS_DASH : PS_SOLID;
+			LOGBRUSH logBrush = { BS_SOLID, LineColor, 0 };
+			CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, LineWidth, &logBrush);
+			CPen* oldPen = dc.SelectObject(&pen);
 			// 擦除旧圆弧（XOR）
 			if (hasLastDrawArc)
 			{
@@ -1307,33 +406,69 @@ void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 			lastArcDirection = direction;
 			lastArcStart = startPoint;
 			lastArcEnd = endPoint;
+			dc.SelectObject(oldPen);
 		}
-		else if (Mode == 4) // Polygon Preview
+		else if (Mode == 7)
 		{
+			if (isDragging && (nFlags & MK_LBUTTON))
+			{
+				// 先擦掉上一次预览（再次画一次相同线段）
+				if (hasDrawLine)
+				{
+					for (auto& line : Lines)
+					{
+						if (line.selected)
+						{
+							int penStyle = line.lineType ? PS_DASH : PS_SOLID;
+							LOGBRUSH logBrush = { BS_SOLID, line.color, 0 };
+							CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, line.lineWidth, &logBrush);
+							CPen* oldPen = dc.SelectObject(&pen);
+							DrawLineA(line.start, line.end, dc, 0, line.color, line.lineWidth, line.lineType);
+							dc.SelectObject(oldPen);
+						}
+					}
+				}
 
-		}
-		else if (Mode == 5) // Fill
-		{
+				// 计算平移偏移
+				double dx = point.x - lastPoint.x;
+				double dy = point.y - lastPoint.y;
 
-		}
-		else if (Mode == 6) // Clip Line Preview
-		{
+				// 临时平移选中线段
+				for (auto& line : Lines)
+				{
+					if (line.selected)
+					{
+						line.start = line.start + CPoint(dx, dy);
+						line.end = line.end + CPoint(dx, dy);
+					}
+				}
 
+				// 绘制新的预览
+				for (auto& line : Lines)
+				{
+					if (line.selected)
+					{
+						int penStyle = line.lineType ? PS_DASH : PS_SOLID;
+						LOGBRUSH logBrush = { BS_SOLID, line.color, 0 };
+						CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, line.lineWidth, &logBrush);
+						CPen* oldPen = dc.SelectObject(&pen);
+						DrawLineA(line.start, line.end, dc, 0, line.color, line.lineWidth, line.lineType);
+						dc.SelectObject(oldPen);
+					}
+				}
+				hasDrawLine = true;
+			}
 		}
-		else if (Mode == 7) // Select Mode(transformation)
-		{
-
-		}
-		dc.SelectObject(oldPen);
 		lastPoint = point;
 	}
 }
 void CPaint3Dlg::EraseLastPreview(CDC& dc)
 {
 	dc.SetROP2(R2_NOTXORPEN);
-	CPen pen(PS_SOLID, 1, LineColor);
+	int penStyle = LineType ? PS_DASH : PS_SOLID;
+	LOGBRUSH logBrush = { BS_SOLID, LineColor, 0 };
+	CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, LineWidth, &logBrush);
 	CPen* oldPen = dc.SelectObject(&pen);
-
 	switch (Mode)
 	{
 	case 1: // Line
@@ -1398,24 +533,8 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 			}
 			else
 			{
-				Lines.push_back({ startPoint, endPoint, LineWidth, LineType, LineColor, false, Algorithm });
-				if (Algorithm == 0) // Default line
-				{
-					DrawLineDefault(startPoint, endPoint, dc);
-				}
-				else if (Algorithm == 1) // DDA line algorithm
-				{
-					//DrawLineDDA(startPoint, endPoint, dc);
-					DrawLineDDAFM(startPoint, endPoint, dc, LineColor, LineWidth, LineType);
-				}
-				else if (Algorithm == 2) // Midpoint line algorithm
-				{
-					DrawLineMidpointFM(startPoint, endPoint, dc, LineColor, LineWidth, LineType);
-				}
-				else if (Algorithm == 3) // Bresenham line algorithm
-				{
-					DrawLineBresenhamFM(startPoint, endPoint, dc, LineColor, LineWidth, LineType);
-				}
+				Lines.push_back({ ++idx, startPoint, endPoint, LineWidth, LineType, LineColor, false, Algorithm, true});
+				DrawLineA(startPoint, endPoint, dc, Algorithm, LineColor, LineWidth, LineType);
 			}
 		}
 		else if (Mode == 2)
@@ -1512,6 +631,43 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 					isDefiningClipPoly = true;
 				}
 				clipPolygon.push_back(point);
+			}
+		}
+		else if (Mode == 7) 
+		{
+			if (Algorithm == 11)
+			{
+				if (isDragging)
+				{
+					isDragging = false;
+
+					// 最终平移量
+					int dx = point.x - dragStart.x;
+					int dy = point.y - dragStart.y;
+
+					for (auto &line : Lines)
+					{
+						if (line.selected)
+						{
+							line.selected = false;
+						}
+					}
+					hasDrawLine = false;
+					Invalidate(1);
+					UpdateWindow();
+					for (auto& line : Lines)
+					{
+						int penStyle = line.lineType ? PS_DASH : PS_SOLID;
+						LOGBRUSH logBrush = { BS_SOLID, line.color, 0 };
+						CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, line.lineWidth, &logBrush);
+						CPen* oldPen = dc.SelectObject(&pen);
+						if (!line.selected)
+						{
+							DrawLineA(line.start, line.end, dc, line.algorithm, line.color, line.lineWidth, line.lineType);
+						}
+						dc.SelectObject(oldPen);
+					}
+				}
 			}
 		}
 		dc.SelectObject(oldPen);

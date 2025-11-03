@@ -40,6 +40,7 @@ protected:
 	
 	
 	struct LineObject {
+		int id;
 		CPoint start;
 		CPoint end;
 		int lineWidth;
@@ -47,6 +48,10 @@ protected:
 		COLORREF color;
 		bool selected;
 		int algorithm;
+		bool visible = true;
+		bool operator < (const LineObject& other) const {
+			return id < other.id;
+		}
 	};
 public:
 	bool IsFill = false; // false不填充 true填充
@@ -70,6 +75,8 @@ public:
 	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
 	afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
 	afx_msg void OnCbnSelchangeCombo2();
+	afx_msg void OnEnChangeEdit1();
+	afx_msg void OnEnChangeEdit2();
 	CComboBox m_mode;
 	vector<vector<CPoint>> Pens; // 保存自由绘制的轨迹
 	vector<COLORREF> PenColors;  // 每段画笔轨迹对应颜色
@@ -78,11 +85,12 @@ public:
 	CComboBox m_algorithm;
 	void EraseLastPreview(CDC& dc);
 	// 画线相关算法
+	int idx = 0;
+	bool hasDrawLine;
 	vector<LineObject> Lines; // 存储线条的起点和终点
 	CPoint startPoint; // 线条起点
 	CPoint endPoint;   // 线条终点
-	bool isDragging = false;
-	CPoint lastMouse;
+	void DrawLineA(CPoint p1, CPoint p2, CDC& dc, int alg, COLORREF color, int lineWidth, int lineType);
 	void DrawLineDefault(CPoint p1, CPoint p2, CDC& dc);
 	void DrawLineDDAFM(CPoint p1, CPoint p2, CDC& dc, COLORREF color, int lineWidth, int lineType);
 	void DrawLineDDA(CPoint p1, CPoint p2, CDC& dc);
@@ -130,6 +138,6 @@ public:
 	bool DefinedClipPoly = false; // 是否已经定义了多边形裁剪窗口
 	// 变换相关
 	bool IsPointNearLine(const CPoint& p, const LineObject& line);
-	afx_msg void OnEnChangeEdit1();
-	afx_msg void OnEnChangeEdit2();
+	bool isDragging = false;
+	CPoint dragStart; // 拖拽起点
 };
