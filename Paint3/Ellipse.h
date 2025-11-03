@@ -9,6 +9,25 @@
 #endif
 using namespace std;
 
+void CPaint3Dlg::DrawEllipseA(CDC& dc, const CRect& rect, COLORREF color, int lineWidth, int lineType, int alg)
+{
+	if (alg == 4) // Default Circle
+	{
+		DrawEllipseDefault(dc, rect);
+	}
+	else if (alg == 5) // Midpoint Circle
+	{
+		DrawEllipseMidpointFM(dc, rect, color, lineWidth, lineType);
+	}
+	else if (alg == 6) // Bresenham Circle
+	{
+		DrawEllipseBresenhamFM(dc, rect, color, lineWidth, lineType);
+	}
+}
+void CPaint3Dlg::DrawEllipseDefault(CDC& dc, const CRect& rect)
+{
+	dc.Ellipse(rect);
+}
 void CPaint3Dlg::DrawEllipseMidpointFM(CDC& dc, const CRect& rect, COLORREF color, int lineWidth, int lineType)
 {
 	int pad = max(2, lineWidth + 1);

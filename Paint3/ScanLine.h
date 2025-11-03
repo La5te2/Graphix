@@ -9,7 +9,7 @@
 #endif
 using namespace std;
 
-void CPaint3Dlg::ScanConvertPolygonOutline(CDC& dc, const std::vector<CPoint>& poly, bool Clipper)
+void CPaint3Dlg::DrawPolygonFM(CDC& dc, const std::vector<CPoint>& poly,bool isfilled, COLORREF fillColor, bool Clipper)
 {
 	if (poly.size() < 2) return;
 	for (size_t i = 0; i < poly.size(); ++i) {
@@ -17,7 +17,7 @@ void CPaint3Dlg::ScanConvertPolygonOutline(CDC& dc, const std::vector<CPoint>& p
 		CPoint b = poly[(i + 1) % poly.size()];
 		DrawLineDefault(a, b, dc);
 	}
-	if (!IsFill || Clipper) return;
+	if (!isfilled || Clipper) return;
 
 	// --- 扫描线填充算法 ---
 	// 获取多边形的 y 范围
@@ -60,7 +60,6 @@ void CPaint3Dlg::ScanConvertPolygonOutline(CDC& dc, const std::vector<CPoint>& p
 	//			dc.SetPixelV(x, y, ShapeColor);
 	//	}
 	//}
-	COLORREF fillColor = ShapeColor;
 
 	// 找出 y 范围
 	int ymin = INT_MAX, ymax = INT_MIN;

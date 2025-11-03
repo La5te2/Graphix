@@ -38,7 +38,6 @@ protected:
 	COLORREF LineColor = RGB(255, 0, 0);
 	COLORREF ShapeColor = RGB(0, 255, 0);
 	
-	
 	struct LineObject {
 		int id;
 		CPoint start;
@@ -53,6 +52,53 @@ protected:
 			return id < other.id;
 		}
 	};
+	struct EllipseObject {
+		int id;
+		CRect rect;
+		int lineWidth;
+		int lineType;
+		COLORREF color;
+		bool isfilled;
+		COLORREF fillColor;
+		bool selected;
+		int algorithm;
+		bool visible = true;
+		bool operator < (const EllipseObject& other) const {
+			return id < other.id;
+		}
+	};
+	struct ArcObject {
+		int id;
+		CPoint start;
+		CPoint end;
+		float angle;
+		bool direction; // true顺时针 false逆时针
+		int lineWidth;
+		int lineType;
+		COLORREF color;
+		bool selected;
+		int algorithm;
+		bool visible = true;
+		bool operator < (const ArcObject& other) const {
+			return id < other.id;
+		}
+	};
+	struct PolygonObject {
+		int id;
+		vector<CPoint> points;
+		int lineWidth;
+		int lineType;
+		COLORREF color;
+		bool isfilled;
+		COLORREF fillColor;
+		bool selected;
+		int algorithm;
+		bool visible = true;
+		bool operator < (const PolygonObject& other) const {
+			return id < other.id;
+		}
+	};
+
 public:
 	bool IsFill = false; // false不填充 true填充
 	int Mode = 0; // 0画笔 1直线 2圆
@@ -62,7 +108,6 @@ public:
 	afx_msg void OnBnClickedButton1();
 	afx_msg void OnBnClickedButton2();
 	int LineWidth;
-//	afx_msg void OnEnChangeEdit1();
 	int LineType;
 	afx_msg void OnBnClickedRadio1();
 	afx_msg void OnBnClickedRadio2();
@@ -85,8 +130,8 @@ public:
 	CComboBox m_algorithm;
 	void EraseLastPreview(CDC& dc);
 	// 画线相关算法
-	int idx = 0;
-	bool hasDrawLine;
+	int idLine = 0;
+	
 	vector<LineObject> Lines; // 存储线条的起点和终点
 	CPoint startPoint; // 线条起点
 	CPoint endPoint;   // 线条终点
@@ -99,15 +144,19 @@ public:
 	void DrawLineBresenhamFM(CPoint p1, CPoint p2, CDC& dc, COLORREF color, int lineWidth, int lineType);
 	void DrawLineBresenham(CPoint p1, CPoint p2, CDC& dc);
 	// 画圆相关算法
-	std::vector<CRect> Ellipses;
+	int idEllipse = 0;
+	std::vector<EllipseObject> Ellipses;
 	CRect lastDrawRect;
 	bool hasLastDrawRect = false;
+	void DrawEllipseA(CDC& dc, const CRect& rect, COLORREF color, int lineWidth, int lineType, int alg);
+	void DrawEllipseDefault(CDC& dc, const CRect& rect);
 	void DrawEllipseMidpointFM(CDC& dc, const CRect& rect, COLORREF color, int lineWidth, int lineType);
 	void DrawEllipseMidpoint(CDC& dc, const CRect& rect);
 	void DrawEllipseBresenhamFM(CDC& dc, const CRect& rect, COLORREF color, int lineWidth, int lineType);
 	void DrawEllipseBresenham(CDC& dc, const CRect& rect);
 	// 圆弧相关
-	vector<pair<CPoint, CPoint>> Arcs; // 存储弧线的起点和终点
+	int idArc = 0;
+	vector<ArcObject> Arcs; // 存储弧线的起点和终点
 	bool hasLastDrawArc = false;
 	float arcAngleDeg;
 	float arcAngle; // 圆弧角度
@@ -120,9 +169,9 @@ public:
 	void DrawArc(float angle, bool direction, CPoint p1, CPoint p2, CDC& dc);
 	void DrawArcPreview(float angle, bool direction, CPoint p1, CPoint p2, CDC& dc);
 	// 多边形相关
-	void ScanConvertPolygonOutline(CDC& dc, const std::vector<CPoint>& poly, bool Clipper);
-//	afx_msg void OnEnChangeEdit2();
-	vector<vector<CPoint>> Polygons;
+	int idPolygon = 0;
+	void DrawPolygonFM(CDC& dc, const std::vector<CPoint>& poly, bool isfilled, COLORREF fillColor, bool Clipper);
+	vector<PolygonObject> Polygons;
 	vector<CPoint> currentPolygon;
 	bool isDrawingPolygon = false;
 	// 填充相关
@@ -141,7 +190,13 @@ public:
 	bool DefinedClipRect = false; // 是否已经定义了矩形裁剪窗口
 	bool DefinedClipPoly = false; // 是否已经定义了多边形裁剪窗口
 	// 变换相关
+	bool hasDrawSelected;
 	bool IsPointNearLine(const CPoint& p, const LineObject& line);
+	bool IsPointNearEllipse(const CPoint& p, const EllipseObject& line);
+	bool IsPointNearArc(const CPoint& p, const ArcObject& line);
+	bool IsPointNearPolygon(const CPoint& p, const PolygonObject& line);
 	bool isDragging = false;
+	bool isScaling = false;
+	bool isRotating = false;
 	CPoint dragStart; // 拖拽起点
 };

@@ -262,6 +262,137 @@ bool CPaint3Dlg::IsPointNearLine(const CPoint& p, const LineObject& line)
 	double dist = sqrt((x0 - projX) * (x0 - projX) + (y0 - projY) * (y0 - projY));
 	return dist <= (line.lineWidth / 2.0 + 3.0); // 允许微小容差
 }
+bool CPaint3Dlg::IsPointNearEllipse(const CPoint& p, const EllipseObject& e)
+{
+	// 计算椭圆中心与半轴
+	double xc = (e.rect.left + e.rect.right) / 2.0;
+	double yc = (e.rect.top + e.rect.bottom) / 2.0;
+	double a = fabs(e.rect.right - e.rect.left) / 2.0;
+	double b = fabs(e.rect.bottom - e.rect.top) / 2.0;
+	if (a < 1e-6 || b < 1e-6) return false;
+
+	// 计算归一化后的椭圆方程值
+	double dx = (p.x - xc);
+	double dy = (p.y - yc);
+	double value = (dx * dx) / (a * a) + (dy * dy) / (b * b);
+
+	// 判断距离边界的误差（允许一定容差）
+	// 理想椭圆上 value = 1，<1 在内部，>1 在外部
+	double tol = (e.lineWidth / 2.0 + 3.0) / max(a, b);
+	return fabs(value - 1.0) <= tol;
+}
+
+//bool CPaint3Dlg::IsPointNearArc(const CPoint& p, const ArcObject& arc)
+//{
+//	// 计算圆心（同你 DrawArc 的几何方法）
+//	double x1 = arc.start.x, y1 = arc.start.y;
+//	double x2 = arc.end.x, y2 = arc.end.y;
+//	double dx = x2 - x1, dy = y2 - y1;
+//	double d = sqrt(dx * dx + dy * dy);
+//	if (d < 1e-6) return false;
+//
+//	double halfAngle = fabs(arc.angle) / 2.0;
+//	double r = (d / 2.0) / sin(halfAngle);
+//	double h = sqrt(max(0.0, r * r - (d / 2.0) * (d / 2.0)));
+//
+//	double mx = (x1 + x2) / 2.0;
+//	double my = (y1 + y2) / 2.0;
+//	double ux = -dy / d, uy = dx / d;
+//
+//	// 两个可能圆心
+//	double cx1 = mx + ux * h;
+//	double cy1 = my + uy * h;
+//	double cx2 = mx - ux * h;
+//	double cy2 = my - uy * h;
+//
+//	auto arcSpan = [&](double cx, double cy) {
+//		double a1 = atan2(y1 - cy, x1 - cx);
+//		double a2 = atan2(y2 - cy, x2 - cx);
+//		double da = a2 - a1;
+//		if (da < 0) da += 2 * M_PI;
+//		return da;
+//		};
+//
+//	double span1 = arcSpan(cx1, cy1);
+//	double span2 = arcSpan(cx2, cy2);
+//	double target = fmod(fabs(arc.angle), 2 * M_PI);
+//	double desired = arc.direction ? target : fmod(2 * M_PI - target, 2 * M_PI);
+//
+//	double cx, cy;
+//	if (fabs(span1 - desired) < fabs(span2 - desired))
+//		cx = cx1, cy = cy1;
+//	else
+//		cx = cx2, cy = cy2;
+//
+//	// 角度范围检查
+//	double startA = atan2(y1 - cy, x1 - cx);
+//	double endA = arc.direction ? (startA + arc.angle) : (startA - arc.angle);
+//	double pa = atan2(p.y - cy, p.x - cx);
+//	auto norm = [](double a) { while (a < 0) a += 2 * M_PI; while (a >= 2 * M_PI) a -= 2 * M_PI; return a; };
+//	startA = norm(startA); endA = norm(endA); pa = norm(pa);
+//
+//	bool insideAngle;
+//	if (arc.direction) // 顺时针 / 逆时针方向取决于定义
+//	{
+//		if (startA <= endA)
+//			insideAngle = (pa >= startA && pa <= endA);
+//		else
+//			insideAngle = (pa >= startA || pa <= endA);
+//	}
+//	else
+//	{
+//		if (endA <= startA)
+//			insideAngle = (pa <= startA && pa >= endA);
+//		else
+//			insideAngle = (pa <= startA || pa >= endA);
+//	}
+//
+//	if (!insideAngle) return false;
+//
+//	// 检查到圆弧的距离
+//	double dist = fabs(sqrt((p.x - cx) * (p.x - cx) + (p.y - cy) * (p.y - cy)) - r);
+//	return dist <= (arc.lineWidth / 2.0 + 3.0);
+//}
+bool CPaint3Dlg::IsPointNearPolygon(const CPoint& p, const PolygonObject& poly)
+{
+	int n = (int)poly.points.size();
+	if (n < 2) return false;
+	for (int i = 0; i < n; ++i)
+	{
+		CPoint a = poly.points[i];
+		CPoint b = poly.points[(i + 1) % n];
+		double x0 = p.x, y0 = p.y;
+		double x1 = a.x, y1 = a.y;
+		double x2 = b.x, y2 = b.y;
+		double dx = x2 - x1, dy = y2 - y1;
+		double len2 = dx * dx + dy * dy;
+		if (len2 == 0) continue;
+
+		double t = ((x0 - x1) * dx + (y0 - y1) * dy) / len2;
+		t = max(0.0, min(1.0, t));
+		double projX = x1 + t * dx;
+		double projY = y1 + t * dy;
+		double dist = sqrt((x0 - projX) * (x0 - projX) + (y0 - projY) * (y0 - projY));
+		if (dist <= (poly.lineWidth / 2.0 + 3.0))
+			return true;
+	}
+	if (poly.isfilled)
+	{
+		bool inside = false;
+		for (int i = 0, j = n - 1; i < n; j = i++)
+		{
+			double xi = poly.points[i].x, yi = poly.points[i].y;
+			double xj = poly.points[j].x, yj = poly.points[j].y;
+			bool intersect = ((yi > p.y) != (yj > p.y)) &&
+				(p.x < (xj - xi) * (p.y - yi) / (yj - yi + 1e-9) + xi);
+			if (intersect)
+				inside = !inside;
+		}
+		return inside;
+	}
+
+	return false;
+}
 
 void CPaint3Dlg::OnLButtonDown(UINT nFlags, CPoint point)
 {
@@ -281,37 +412,106 @@ void CPaint3Dlg::OnLButtonDown(UINT nFlags, CPoint point)
 		if (Algorithm == 11)
 		{
 			bool hit = false;
-
+			int cnt = 0;
 			for (auto& line : Lines)
 			{
 				if (line.visible && IsPointNearLine(point, line))
 				{
+					++cnt;
 					line.selected = true;
 					hit = true;
 				}
 			}
-
-			if (!hit)
-				AfxMessageBox(_T("未选中任何图形。"));
-			else // test 
+			for (auto& ell : Ellipses)
 			{
+				if (ell.visible && IsPointNearEllipse(point, ell))
+				{
+					++cnt;
+					ell.selected = true;
+					hit = true;
+				}
+			}
+			//for (auto& arc : Arcs)
+			//{
+			//	if (arc.visible && IsPointNearArc(point, arc))
+			//	{
+			//		++cnt;
+			//		arc.selected = true;
+			//		hit = true;
+			//	}
+			//}
+			for (auto& poly : Polygons)
+			{
+				if (poly.visible && IsPointNearPolygon(point, poly))
+				{
+					++cnt;
+					poly.selected = true;
+					hit = true;
+				}
+			}
+
+			// 3️⃣ 处理命中结果
+			if (!hit)
+			{
+				AfxMessageBox(_T("未选中任何图形。"));
+			}
+			else
+			{
+				//AfxMessageBox((CString(to_wstring(cnt).c_str())));
+				//AfxMessageBox(CString(std::to_wstring(CPolygons.size()).c_str()));
 				CClientDC dc(this);
 				dc.SetROP2(R2_COPYPEN);
 				Invalidate(1);
 				UpdateWindow();
+
+				// 重新绘制所有可见图形（保持选中状态）
 				for (auto& line : Lines)
 				{
+					if (!line.visible || line.selected) continue;
 					int penStyle = line.lineType ? PS_DASH : PS_SOLID;
 					LOGBRUSH logBrush = { BS_SOLID, line.color, 0 };
 					CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, line.lineWidth, &logBrush);
 					CPen* oldPen = dc.SelectObject(&pen);
-					if (!line.selected)
-					{
-						DrawLineA(line.start, line.end, dc, line.algorithm, line.color, line.lineWidth, line.lineType);
-					}
+					DrawLineA(line.start, line.end, dc, line.algorithm, line.color, line.lineWidth, line.lineType);
 					dc.SelectObject(oldPen);
 				}
-				// 如果选中了，准备拖动
+
+				for (auto& ell : Ellipses)
+				{
+					if (ell.selected) continue;
+					int penStyle = ell.lineType ? PS_DASH : PS_SOLID;
+					LOGBRUSH logBrush = { BS_SOLID, ell.color, 0 };
+					CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, ell.lineWidth, &logBrush);
+					CPen* oldPen = dc.SelectObject(&pen);
+					CBrush* pNullBrush = CBrush::FromHandle((HBRUSH)GetStockObject(NULL_BRUSH));
+					CBrush* oldBrush = dc.SelectObject(pNullBrush);
+					DrawEllipseA(dc, ell.rect, ell.color, ell.lineWidth, ell.lineType, ell.algorithm);
+					dc.SelectObject(oldBrush);
+					dc.SelectObject(oldPen);
+				}
+
+				//for (auto& arc : Arcs)
+				//{
+				//	if (!arc.visible || arc.selected) continue;
+				//	int penStyle = arc.lineType ? PS_DASH : PS_SOLID;
+				//	LOGBRUSH logBrush = { BS_SOLID, arc.color, 0 };
+				//	CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, arc.lineWidth, &logBrush);
+				//	CPen* oldPen = dc.SelectObject(&pen);
+				//	DrawArcFM(arc.angle, arc.direction, arc.start, arc.end, dc, arc.color, arc.lineWidth, arc.lineType);
+				//	dc.SelectObject(oldPen);
+				//}
+
+				for (auto& poly : Polygons)
+				{
+					if (!poly.visible || poly.selected) continue;
+					int penStyle = poly.lineType ? PS_DASH : PS_SOLID;
+					LOGBRUSH logBrush = { BS_SOLID, poly.color, 0 };
+					CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, poly.lineWidth, &logBrush);
+					CPen* oldPen = dc.SelectObject(&pen);
+					DrawPolygonFM(dc, poly.points, poly.isfilled, poly.fillColor, false);
+					dc.SelectObject(oldPen);
+				}
+
 				isDragging = true;
 				dragStart = point;
 			}
@@ -418,7 +618,7 @@ void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 			if (isDragging && (nFlags & MK_LBUTTON))
 			{
 				// 先擦掉上一次预览（再次画一次相同线段）
-				if (hasDrawLine)
+				if (hasDrawSelected)
 				{
 					for (auto& line : Lines)
 					{
@@ -461,7 +661,7 @@ void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 						dc.SelectObject(oldPen);
 					}
 				}
-				hasDrawLine = true;
+				hasDrawSelected = true;
 			}
 		}
 		lastPoint = point;
@@ -538,7 +738,7 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 			}
 			else
 			{
-				Lines.push_back({ ++idx, startPoint, endPoint, LineWidth, LineType, LineColor, false, Algorithm, true});
+				Lines.push_back({ ++idLine, startPoint, endPoint, LineWidth, LineType, LineColor, false, Algorithm, true});
 				DrawLineA(startPoint, endPoint, dc, Algorithm, LineColor, LineWidth, LineType);
 			}
 		}
@@ -557,7 +757,7 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 				else rect.bottom = startPoint.y + len;
 			}
 
-			Ellipses.push_back(rect);
+			Ellipses.push_back({ ++idEllipse, rect, LineWidth,  LineType, LineColor, IsFill, ShapeColor, false, Algorithm, true });
 
 			if (IsFill)
 			{
@@ -570,24 +770,12 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 			{
 				CBrush* pNullBrush = CBrush::FromHandle((HBRUSH)GetStockObject(NULL_BRUSH));
 				CBrush* oldBrush = dc.SelectObject(pNullBrush);
-				if (Algorithm == 4) // Default Circle
-				{
-					dc.Ellipse(rect);
-				}
-				else if (Algorithm == 5) // Midpoint Circle
-				{
-					DrawEllipseMidpointFM(dc, rect, LineColor, LineWidth, LineType);
-				}
-				else if (Algorithm == 6) // Bresenham Circle
-				{
-					DrawEllipseBresenhamFM(dc, rect, LineColor, LineWidth, LineType);
-				}
+				DrawEllipseA(dc, rect, LineColor, LineWidth, LineType, Algorithm);
 				dc.SelectObject(oldBrush);
 			}
 		}
 		else if (Mode == 3) // Arc
 		{
-			Arcs.push_back(make_pair(startPoint, endPoint));
 			hasLastDrawArc = false;
 			bool direction = true; // 默认逆时针
 			if (GetKeyState(VK_SHIFT) & 0x8000)
@@ -595,6 +783,7 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 			if (Algorithm == 7) // Bresenham Arc
 			{
 				arcAngle = arcAngleDeg * M_PI / 180.0;
+				Arcs.push_back({ ++idArc, startPoint, endPoint, arcAngleDeg, direction, LineWidth, LineType, LineColor, false, Algorithm, true });
 				DrawArcFM(arcAngle, direction, startPoint, endPoint, dc, LineColor, LineWidth, LineType);
 			}
 		}
@@ -624,7 +813,7 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 				clipPolygon.push_back(bottomLeft);
 				clipPolygon.push_back(clipRect.BottomRight());
 				CPolygons.push_back(clipPolygon);
-				ScanConvertPolygonOutline(dc, clipPolygon, true);
+				DrawPolygonFM(dc, clipPolygon, IsFill, ShapeColor, true);
 				AfxMessageBox(_T("矩形裁剪窗口已设置。"));
 				DefinedClipRect = true;
 			}
@@ -657,19 +846,52 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 							line.selected = false;
 						}
 					}
-					hasDrawLine = false;
+					hasDrawSelected = false;
 					Invalidate(1);
 					UpdateWindow();
 					for (auto& line : Lines)
 					{
+						if (line.selected) continue;
 						int penStyle = line.lineType ? PS_DASH : PS_SOLID;
 						LOGBRUSH logBrush = { BS_SOLID, line.color, 0 };
 						CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, line.lineWidth, &logBrush);
 						CPen* oldPen = dc.SelectObject(&pen);
-						if (!line.selected)
-						{
-							DrawLineA(line.start, line.end, dc, line.algorithm, line.color, line.lineWidth, line.lineType);
-						}
+						DrawLineA(line.start, line.end, dc, line.algorithm, line.color, line.lineWidth, line.lineType);
+						dc.SelectObject(oldPen);
+					}
+					for (auto& ell : Ellipses)
+					{
+						if (ell.selected) continue;
+						int penStyle = ell.lineType ? PS_DASH : PS_SOLID;
+						LOGBRUSH logBrush = { BS_SOLID, ell.color, 0 };
+						CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, ell.lineWidth, &logBrush);
+						CPen* oldPen = dc.SelectObject(&pen);
+						CBrush* pNullBrush = CBrush::FromHandle((HBRUSH)GetStockObject(NULL_BRUSH));
+						CBrush* oldBrush = dc.SelectObject(pNullBrush);
+						DrawEllipseA(dc, ell.rect, ell.color, ell.lineWidth, ell.lineType, ell.algorithm);
+						dc.SelectObject(oldBrush);
+						dc.SelectObject(oldPen);
+					}
+
+					//for (auto& arc : Arcs)
+					//{
+					//	if (!arc.visible || arc.selected) continue;
+					//	int penStyle = arc.lineType ? PS_DASH : PS_SOLID;
+					//	LOGBRUSH logBrush = { BS_SOLID, arc.color, 0 };
+					//	CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, arc.lineWidth, &logBrush);
+					//	CPen* oldPen = dc.SelectObject(&pen);
+					//	DrawArcFM(arc.angle, arc.direction, arc.start, arc.end, dc, arc.color, arc.lineWidth, arc.lineType);
+					//	dc.SelectObject(oldPen);
+					//}
+
+					for (auto& poly : Polygons)
+					{
+						if (!poly.visible || poly.selected) continue;
+						int penStyle = poly.lineType ? PS_DASH : PS_SOLID;
+						LOGBRUSH logBrush = { BS_SOLID, poly.color, 0 };
+						CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, poly.lineWidth, &logBrush);
+						CPen* oldPen = dc.SelectObject(&pen);
+						DrawPolygonFM(dc, poly.points, poly.isfilled, poly.fillColor, false);
 						dc.SelectObject(oldPen);
 					}
 				}
@@ -699,8 +921,8 @@ void CPaint3Dlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 		else clippedPoly = currentPolygon;
 		if (clippedPoly.size() >= 3)
 		{
-			ScanConvertPolygonOutline(dc, clippedPoly, false);
-			Polygons.push_back(clippedPoly);
+			DrawPolygonFM(dc, clippedPoly, IsFill, ShapeColor, false);
+			Polygons.push_back({ ++idPolygon, clippedPoly, LineWidth, LineType, LineColor, IsFill, ShapeColor, false, Algorithm, true });
 			currentPolygon.clear();
 			dc.SelectObject(oldPen);
 		}
@@ -723,7 +945,7 @@ void CPaint3Dlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 				LOGBRUSH logBrush = { BS_SOLID, LineColor, 0 };
 				CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, LineWidth, &logBrush);
 				CPen* oldPen = dc.SelectObject(&pen);
-				ScanConvertPolygonOutline(dc, clipPolygon, true);
+				DrawPolygonFM(dc, clipPolygon, IsFill, ShapeColor, true);
 				isDefiningClipPoly = false;
 				DefinedClipPoly = true;
 				CPolygons.push_back(clipPolygon);
