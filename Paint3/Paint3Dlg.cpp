@@ -9,11 +9,47 @@
 #include "afxdialogex.h"
 #include "std.h"
 #include "LINE.h"
+#include "AlgMenu.h"
 #include <corecrt_math_defines.h>
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
 using namespace std;
+
+// 模式枚举
+namespace { // 仅在本 .cpp 可见
+	enum : int
+	{
+		PEN = 0,
+		Line = 1,
+		ELLIPSE = 2,
+		ARC = 3,
+		POLYGON = 4,
+		FILL = 5,
+		CLIP = 6,
+		SELECT = 7
+	};
+	enum : int
+	{
+		Line_Default = 0,
+		Line_DDA = 1,
+		Line_Bresenham = 2,
+		Line_Midpoint = 3,
+
+		Circle_Default = 4,
+		Circle_Midpoint = 5,
+		Circle_Bresenham = 6,
+
+		Arc_Bresenham = 7,
+
+		Fill_Scanline = 9,
+		Poly_Default = 10,
+		Clip_Rect_CS = 11,
+		Clip_Midpoint = 12,
+		Clip_Convex_CB = 13,
+		Clip_Poly_Suth = 14,
+	};
+}
 
 // 用于应用程序“关于”菜单项的 CAboutDlg 对话框
 
@@ -21,16 +57,14 @@ class CAboutDlg : public CDialogEx
 {
 public:
 	CAboutDlg();
-
-// 对话框数据
+	// 对话框数据
 #ifdef AFX_DESIGN_TIME
 	enum { IDD = IDD_ABOUTBOX };
 #endif
-
-	protected:
+protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV 支持
 
-// 实现
+	// 实现
 protected:
 	DECLARE_MESSAGE_MAP()
 };
@@ -54,10 +88,10 @@ END_MESSAGE_MAP()
 
 CPaint3Dlg::CPaint3Dlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_PAINT3_DIALOG, pParent)
-	, LineWidth(0)
+	, LineWidth(5)
 	, LineType(0)
 	, arcAngle(M_PI)
-	, arcAngleDeg(0)
+	, arcAngleDeg(180)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -80,7 +114,6 @@ BEGIN_MESSAGE_MAP(CPaint3Dlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_BUTTON1, &CPaint3Dlg::OnBnClickedButton1)
 	ON_BN_CLICKED(IDC_BUTTON2, &CPaint3Dlg::OnBnClickedButton2)
-	ON_EN_CHANGE(IDC_EDIT1, &CPaint3Dlg::OnEnChangeEdit1)
 	ON_BN_CLICKED(IDC_RADIO1, &CPaint3Dlg::OnBnClickedRadio1)
 	ON_BN_CLICKED(IDC_RADIO2, &CPaint3Dlg::OnBnClickedRadio2)
 	ON_CBN_SELCHANGE(IDC_COMBO1, &CPaint3Dlg::OnCbnSelchangeCombo1)
@@ -89,8 +122,9 @@ BEGIN_MESSAGE_MAP(CPaint3Dlg, CDialogEx)
 	ON_WM_MOUSEMOVE()
 	ON_CBN_SELCHANGE(IDC_COMBO2, &CPaint3Dlg::OnCbnSelchangeCombo2)
 	ON_CBN_SELCHANGE(IDC_COMBO3, &CPaint3Dlg::OnCbnSelchangeCombo3)
-	ON_EN_CHANGE(IDC_EDIT2, &CPaint3Dlg::OnEnChangeEdit2)
 	ON_WM_KEYDOWN()
+	ON_EN_CHANGE(IDC_EDIT1, &CPaint3Dlg::OnEnChangeEdit1)
+	ON_EN_CHANGE(IDC_EDIT2, &CPaint3Dlg::OnEnChangeEdit2)
 END_MESSAGE_MAP()
 
 
@@ -142,21 +176,7 @@ BOOL CPaint3Dlg::OnInitDialog()
 	m_mode.AddString(_T("Clip"));
 	m_mode.AddString(_T("Select"));
 	m_mode.SetCurSel(0);
-	m_algorithm.AddString(_T("Default Line"));
-	m_algorithm.AddString(_T("DDA Line Algorithm"));
-	m_algorithm.AddString(_T("Midpoint Line Algorithm"));
-	m_algorithm.AddString(_T("Bresenham Line Algorithm"));
-	m_algorithm.AddString(_T("Default Circle"));
-	m_algorithm.AddString(_T("Midpoint Circle Algorithm"));
-	m_algorithm.AddString(_T("Bresenham Circle Algorithm"));
-	m_algorithm.AddString(_T("Bresenham Arc Algorithm"));
-	m_algorithm.AddString(_T("Default Polygon Algorithm"));
-	m_algorithm.AddString(_T("Default Clip"));
-	m_algorithm.AddString(_T("Polygon Clip"));
-	m_algorithm.AddString(_T("Translation"));
-	m_algorithm.AddString(_T("Scaling"));
-	m_algorithm.AddString(_T("Rotation"));
-	m_algorithm.SetCurSel(0);
+	AlgMenu::RefreshAlgorithmListForMode(*this);
 	UpdateData(FALSE);
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -182,7 +202,7 @@ BOOL CPaint3Dlg::PreTranslateMessage(MSG* pMsg) // 捕获键盘消息
 	if (pMsg->message == WM_KEYDOWN)
 	{
 		OnKeyDown((UINT)pMsg->wParam, (UINT)pMsg->lParam, 0);
-		return TRUE;
+		return false;
 	}
 	return CDialogEx::PreTranslateMessage(pMsg);
 }
@@ -247,7 +267,7 @@ void CPaint3Dlg::DrawEllipseMidpoint(CDC& dc, const CRect& rect)
 		for (int wx = -halfW; wx <= halfW; ++wx)
 			for (int wy = -halfW; wy <= halfW; ++wy)
 				dc.SetPixelV(px + wx, py + wy, LineColor);
-	};
+		};
 
 	long dx = 2 * b2 * x;
 	long dy = 2 * a2 * y;
@@ -415,7 +435,7 @@ void CPaint3Dlg::DrawArc(float angle, bool direction, CPoint p1, CPoint p2, CDC&
 		double da = a2 - a1;
 		if (da < 0) da += 2 * M_PI;
 		return da; // CCW span from p1 to p2 in [0, 2PI)
-	};
+		};
 
 	double span1 = arcSpan(cx1, cy1);
 	double span2 = arcSpan(cx2, cy2);
@@ -685,7 +705,7 @@ void CPaint3Dlg::ScanConvertPolygonOutline(CDC& dc, const std::vector<CPoint>& p
 		p[0] = GetBValue(c);
 		p[1] = GetGValue(c);
 		p[2] = GetRValue(c);
-	};
+		};
 	std::vector<Edge> AET;
 	for (int y = ymin; y <= ymax; ++y)
 	{
@@ -802,7 +822,7 @@ void CPaint3Dlg::ScanlineFillFM(CDC& dc, CPoint seed, COLORREF fillColor, COLORR
 	auto getPixel = [&](int x, int y) -> COLORREF {
 		BYTE* p = pBits + y * stride + x * 4;
 		return RGB(p[2], p[1], p[0]);
-	};
+		};
 
 	COLORREF targetColor = getPixel(seed.x, seed.y);
 	if (targetColor == fillColor || targetColor == borderColor)
@@ -817,7 +837,7 @@ void CPaint3Dlg::ScanlineFillFM(CDC& dc, CPoint seed, COLORREF fillColor, COLORR
 		p[0] = GetBValue(color);
 		p[1] = GetGValue(color);
 		p[2] = GetRValue(color);
-	};
+		};
 	std::stack<CPoint> stk;
 	stk.push(seed);
 	while (!stk.empty())
@@ -911,7 +931,7 @@ bool CPaint3Dlg::ClipLineMidpoint(CPoint& p1, CPoint& p2, CRect clip)
 {
 	auto isInside = [&](CPoint p) {
 		return clip.PtInRect(p) != FALSE;
-	};
+		};
 
 	// 两端都在内部
 	if (isInside(p1) && isInside(p2))
@@ -1224,7 +1244,7 @@ void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 		CPen pen(PS_SOLID, 1, LineColor);
 		CPen* oldPen = dc.SelectObject(&pen);
 
-		if (Mode == 0) 
+		if (Mode == 0)
 		{
 			Pens.back().push_back(point);
 			dc.MoveTo(lastPoint);
@@ -1266,7 +1286,7 @@ void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 			lastDrawRect = newRect;
 			hasLastDrawRect = true;
 		}
-		
+
 		else if (Mode == 3) // Arc Preview
 		{
 			// 擦除旧圆弧（XOR）
@@ -1294,7 +1314,7 @@ void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 		}
 		else if (Mode == 5) // Fill
 		{
-			
+
 		}
 		else if (Mode == 6) // Clip Line Preview
 		{
@@ -1365,7 +1385,7 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 			{
 				//AfxMessageBox(_T("Rect Clip"));
 				tmp = ClipLineCohenSutherland(startPoint, endPoint, clipRect);
-			}	
+			}
 			else if (DefinedClipPoly)
 			{
 				//AfxMessageBox(_T("Poly Clip"));
@@ -1426,15 +1446,15 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 			{
 				CBrush* pNullBrush = CBrush::FromHandle((HBRUSH)GetStockObject(NULL_BRUSH));
 				CBrush* oldBrush = dc.SelectObject(pNullBrush);
-				if(Algorithm == 4) // Default Circle
+				if (Algorithm == 4) // Default Circle
 				{
 					dc.Ellipse(rect);
 				}
-				else if(Algorithm == 5) // Midpoint Circle
+				else if (Algorithm == 5) // Midpoint Circle
 				{
 					DrawEllipseMidpoint(dc, rect);
 				}
-				else if(Algorithm == 6) // Bresenham Circle
+				else if (Algorithm == 6) // Bresenham Circle
 				{
 					DrawEllipseBresenham(dc, rect);
 				}
@@ -1455,8 +1475,8 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 			}
 		}
 		else if (Mode == 4) // Polygon
-		{	
-			if (Algorithm == 8) 
+		{
+			if (Algorithm == 8)
 			{
 				currentPolygon.push_back(point);
 			}
@@ -1516,7 +1536,7 @@ void CPaint3Dlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 			clippedPoly = SutherlandHodgmanClipPolygon(currentPolygon, CPolygons.back());
 		}
 		else clippedPoly = currentPolygon;
-		if (clippedPoly.size() >= 3) 
+		if (clippedPoly.size() >= 3)
 		{
 			ScanConvertPolygonOutline(dc, clippedPoly, false);
 			Polygons.push_back(clippedPoly);
@@ -1528,7 +1548,7 @@ void CPaint3Dlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 			AfxMessageBox(_T("顶点数不足3，裁剪后无法构成多边形！请重新输入。"));
 			currentPolygon.clear();
 		}
-		
+
 	}
 	if (Mode == 6 && Algorithm == 10 && isDefiningClipPoly)
 	{
@@ -1576,14 +1596,6 @@ void CPaint3Dlg::OnBnClickedButton2()
 	}
 }
 
-void CPaint3Dlg::OnEnChangeEdit1()
-{
-	UpdateData(TRUE); // 将控件的值更新到变量
-}
-void CPaint3Dlg::OnEnChangeEdit2()
-{
-	UpdateData(TRUE); // 将控件的值更新到变量
-}
 
 void CPaint3Dlg::OnBnClickedRadio1()
 {
@@ -1604,9 +1616,21 @@ void CPaint3Dlg::OnCbnSelchangeCombo2()
 {
 	int sel = m_mode.GetCurSel();
 	Mode = sel;
+	AlgMenu::RefreshAlgorithmListForMode(*this);
 }
 void CPaint3Dlg::OnCbnSelchangeCombo3()
 {
 	int sel = m_algorithm.GetCurSel();
-	Algorithm = sel;
+	if (sel >= 0) {
+		Algorithm = static_cast<int>(m_algorithm.GetItemData(sel));
+	}
+}
+void CPaint3Dlg::OnEnChangeEdit1()
+{
+	UpdateData(TRUE);
+}
+
+void CPaint3Dlg::OnEnChangeEdit2()
+{
+	UpdateData(TRUE);
 }

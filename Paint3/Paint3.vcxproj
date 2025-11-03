@@ -183,6 +183,7 @@
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="AlgMenu.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="LINE.h" />
     <ClInclude Include="Paint3.h" />
@@ -193,6 +194,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AlgMenu.cpp" />
     <ClCompile Include="Paint3.cpp" />
     <ClCompile Include="Paint3Dlg.cpp" />
     <ClCompile Include="pch.cpp">

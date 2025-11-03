@@ -38,11 +38,7 @@ protected:
 	COLORREF LineColor = RGB(255, 0, 0);
 	COLORREF ShapeColor = RGB(0, 255, 0);
 	
-	bool IsFill = false; // false不填充 true填充
-	int Mode = 0; // 0画笔 1直线 2圆
-	int Algorithm = 0; 
-	// 0 Default 1 DDA 2 Bresenham 3 Midpoint 
-	// 4 Default Circle 5 Midpoint Circle 6 Bresenham Circle
+	
 	struct LineObject {
 		CPoint start;
 		CPoint end;
@@ -53,10 +49,15 @@ protected:
 		int algorithm;
 	};
 public:
+	bool IsFill = false; // false不填充 true填充
+	int Mode = 0; // 0画笔 1直线 2圆
+	int Algorithm = 0; 
+	// 0 Default 1 DDA 2 Bresenham 3 Midpoint 
+	// 4 Default Circle 5 Midpoint Circle 6 Bresenham Circle
 	afx_msg void OnBnClickedButton1();
 	afx_msg void OnBnClickedButton2();
 	int LineWidth;
-	afx_msg void OnEnChangeEdit1();
+//	afx_msg void OnEnChangeEdit1();
 	int LineType;
 	afx_msg void OnBnClickedRadio1();
 	afx_msg void OnBnClickedRadio2();
@@ -108,7 +109,7 @@ public:
 	void DrawArcPreview(float angle, bool direction, CPoint p1, CPoint p2, CDC& dc);
 	// 多边形相关
 	void ScanConvertPolygonOutline(CDC& dc, const std::vector<CPoint>& poly, bool Clipper);
-	afx_msg void OnEnChangeEdit2();
+//	afx_msg void OnEnChangeEdit2();
 	vector<vector<CPoint>> Polygons;
 	vector<CPoint> currentPolygon;
 	bool isDrawingPolygon = false;
@@ -129,4 +130,6 @@ public:
 	bool DefinedClipPoly = false; // 是否已经定义了多边形裁剪窗口
 	// 变换相关
 	bool IsPointNearLine(const CPoint& p, const LineObject& line);
+	afx_msg void OnEnChangeEdit1();
+	afx_msg void OnEnChangeEdit2();
 };
