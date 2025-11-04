@@ -28,7 +28,7 @@ void CPaint3Dlg::DrawLineDefault(CPoint p1, CPoint p2, CDC& dc)
 }
 void CPaint3Dlg::DrawLineDDAFM(CPoint p1, CPoint p2, CDC& dc, COLORREF color, int lineWidth, int lineType)
 {
-	// 1. 计算局部绘制区域（添加一点 margin）
+	// 计算局部绘制区域（添加一点 margin）
 	int pad = max(2, lineWidth + 1);
 	int minX = min(p1.x, p2.x) - pad;
 	int minY = min(p1.y, p2.y) - pad;
@@ -50,7 +50,7 @@ void CPaint3Dlg::DrawLineDDAFM(CPoint p1, CPoint p2, CDC& dc, COLORREF color, in
 	int h = maxY - minY + 1;
 	if (w <= 0 || h <= 0) return;
 
-	// 2. 创建内存 DC 与 DIBSection（top-down）
+	// 创建内存 DC 与 DIBSection（top-down）
 	CDC memDC;
 	memDC.CreateCompatibleDC(&dc);
 
@@ -73,7 +73,7 @@ void CPaint3Dlg::DrawLineDDAFM(CPoint p1, CPoint p2, CDC& dc, COLORREF color, in
 	// 将位图选入内存 DC，并保存旧位图句柄
 	HBITMAP hOldBmp = (HBITMAP)memDC.SelectObject(hDib);
 
-	// 3. 关键：先把目标区域背景从屏幕拷贝到内存位图
+	// 关键：先把目标区域背景从屏幕拷贝到内存位图
 	//    这样我们在 DIB 上只修改需要改的像素，不会把剩下区域变成黑色
 	memDC.BitBlt(0, 0, w, h, &dc, minX, minY, SRCCOPY);
 
@@ -84,13 +84,20 @@ void CPaint3Dlg::DrawLineDDAFM(CPoint p1, CPoint p2, CDC& dc, COLORREF color, in
 	auto putPixel = [&](int lx, int ly, BYTE R, BYTE G, BYTE B) {
 		if (lx < 0 || lx >= w || ly < 0 || ly >= h) return;
 		BYTE* p = base + ly * strideBytes + lx * 4;
-		p[0] = B;
-		p[1] = G;
-		p[2] = R;
+
+		// 当前背景色
+		BYTE oldB = p[0];
+		BYTE oldG = p[1];
+		BYTE oldR = p[2];
+
+		// XOR混合：绘制一次出现线条，再绘制一次恢复
+		p[0] = not(oldB) ^ B;
+		p[1] = not(oldG) ^ G;
+		p[2] = not(oldR) ^ R;
 		p[3] = 0;
 	};
 
-	// 4. DDA 主循环（局部坐标）
+	// DDA 主循环（局部坐标）
 	double dx = (double)p2.x - (double)p1.x;
 	double dy = (double)p2.y - (double)p1.y;
 	double steps = max(fabs(dx), fabs(dy));
@@ -147,10 +154,10 @@ void CPaint3Dlg::DrawLineDDAFM(CPoint p1, CPoint p2, CDC& dc, COLORREF color, in
 		y += yInc;
 	}
 
-	// 5. 一次性 blt 回屏幕
+	// 一次性 blt 回屏幕
 	dc.BitBlt(minX, minY, w, h, &memDC, 0, 0, SRCCOPY);
 
-	// 6. 恢复旧对象并释放资源 —— 注意先恢复再 DeleteObject(hDib)
+	// 恢复旧对象并释放资源 —— 注意先恢复再 DeleteObject(hDib)
 	memDC.SelectObject(hOldBmp);
 	if (hDib) DeleteObject(hDib);
 }

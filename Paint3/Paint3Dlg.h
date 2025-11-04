@@ -5,7 +5,6 @@
 #pragma once
 #include "std.h"
 #include "afxdialogex.h"
-#include <corecrt_math_defines.h>
 using namespace std;
 
 // CPaint3Dlg 对话框
@@ -49,7 +48,7 @@ protected:
 		int algorithm;
 		bool visible = true;
 		bool operator < (const LineObject& other) const {
-			return id < other.id;
+			return id > other.id;
 		}
 	};
 	struct EllipseObject {
@@ -64,7 +63,7 @@ protected:
 		int algorithm;
 		bool visible = true;
 		bool operator < (const EllipseObject& other) const {
-			return id < other.id;
+			return id > other.id;
 		}
 	};
 	struct ArcObject {
@@ -80,7 +79,7 @@ protected:
 		int algorithm;
 		bool visible = true;
 		bool operator < (const ArcObject& other) const {
-			return id < other.id;
+			return id > other.id;
 		}
 	};
 	struct PolygonObject {
@@ -95,7 +94,7 @@ protected:
 		int algorithm;
 		bool visible = true;
 		bool operator < (const PolygonObject& other) const {
-			return id < other.id;
+			return id > other.id;
 		}
 	};
 
@@ -131,7 +130,6 @@ public:
 	void EraseLastPreview(CDC& dc);
 	// 画线相关算法
 	int idLine = 0;
-	
 	vector<LineObject> Lines; // 存储线条的起点和终点
 	CPoint startPoint; // 线条起点
 	CPoint endPoint;   // 线条终点
@@ -193,10 +191,11 @@ public:
 	bool hasDrawSelected;
 	bool IsPointNearLine(const CPoint& p, const LineObject& line);
 	bool IsPointNearEllipse(const CPoint& p, const EllipseObject& line);
-	bool IsPointNearArc(const CPoint& p, const ArcObject& line);
+	//bool IsPointNearArc(const CPoint& p, const ArcObject& line);
 	bool IsPointNearPolygon(const CPoint& p, const PolygonObject& line);
 	bool isDragging = false;
 	bool isScaling = false;
 	bool isRotating = false;
 	CPoint dragStart; // 拖拽起点
+	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
 };

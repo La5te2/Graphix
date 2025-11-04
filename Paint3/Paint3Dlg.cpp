@@ -1,4 +1,5 @@
 ﻿
+﻿
 // Paint3Dlg.cpp: 实现文件
 // 
 #include "pch.h"
@@ -12,7 +13,6 @@
 #include "ScanLine.h"
 #include "Clip.h"
 #include "AlgMenu.h"
-#include <corecrt_math_defines.h>
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -282,77 +282,7 @@ bool CPaint3Dlg::IsPointNearEllipse(const CPoint& p, const EllipseObject& e)
 	return fabs(value - 1.0) <= tol;
 }
 
-//bool CPaint3Dlg::IsPointNearArc(const CPoint& p, const ArcObject& arc)
-//{
-//	// 计算圆心（同你 DrawArc 的几何方法）
-//	double x1 = arc.start.x, y1 = arc.start.y;
-//	double x2 = arc.end.x, y2 = arc.end.y;
-//	double dx = x2 - x1, dy = y2 - y1;
-//	double d = sqrt(dx * dx + dy * dy);
-//	if (d < 1e-6) return false;
-//
-//	double halfAngle = fabs(arc.angle) / 2.0;
-//	double r = (d / 2.0) / sin(halfAngle);
-//	double h = sqrt(max(0.0, r * r - (d / 2.0) * (d / 2.0)));
-//
-//	double mx = (x1 + x2) / 2.0;
-//	double my = (y1 + y2) / 2.0;
-//	double ux = -dy / d, uy = dx / d;
-//
-//	// 两个可能圆心
-//	double cx1 = mx + ux * h;
-//	double cy1 = my + uy * h;
-//	double cx2 = mx - ux * h;
-//	double cy2 = my - uy * h;
-//
-//	auto arcSpan = [&](double cx, double cy) {
-//		double a1 = atan2(y1 - cy, x1 - cx);
-//		double a2 = atan2(y2 - cy, x2 - cx);
-//		double da = a2 - a1;
-//		if (da < 0) da += 2 * M_PI;
-//		return da;
-//		};
-//
-//	double span1 = arcSpan(cx1, cy1);
-//	double span2 = arcSpan(cx2, cy2);
-//	double target = fmod(fabs(arc.angle), 2 * M_PI);
-//	double desired = arc.direction ? target : fmod(2 * M_PI - target, 2 * M_PI);
-//
-//	double cx, cy;
-//	if (fabs(span1 - desired) < fabs(span2 - desired))
-//		cx = cx1, cy = cy1;
-//	else
-//		cx = cx2, cy = cy2;
-//
-//	// 角度范围检查
-//	double startA = atan2(y1 - cy, x1 - cx);
-//	double endA = arc.direction ? (startA + arc.angle) : (startA - arc.angle);
-//	double pa = atan2(p.y - cy, p.x - cx);
-//	auto norm = [](double a) { while (a < 0) a += 2 * M_PI; while (a >= 2 * M_PI) a -= 2 * M_PI; return a; };
-//	startA = norm(startA); endA = norm(endA); pa = norm(pa);
-//
-//	bool insideAngle;
-//	if (arc.direction) // 顺时针 / 逆时针方向取决于定义
-//	{
-//		if (startA <= endA)
-//			insideAngle = (pa >= startA && pa <= endA);
-//		else
-//			insideAngle = (pa >= startA || pa <= endA);
-//	}
-//	else
-//	{
-//		if (endA <= startA)
-//			insideAngle = (pa <= startA && pa >= endA);
-//		else
-//			insideAngle = (pa <= startA || pa >= endA);
-//	}
-//
-//	if (!insideAngle) return false;
-//
-//	// 检查到圆弧的距离
-//	double dist = fabs(sqrt((p.x - cx) * (p.x - cx) + (p.y - cy) * (p.y - cy)) - r);
-//	return dist <= (arc.lineWidth / 2.0 + 3.0);
-//}
+
 bool CPaint3Dlg::IsPointNearPolygon(const CPoint& p, const PolygonObject& poly)
 {
 	int n = (int)poly.points.size();
@@ -615,6 +545,7 @@ void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 		}
 		else if (Mode == 7)
 		{
+			dc.SetROP2(R2_NOTXORPEN);
 			if (isDragging && (nFlags & MK_LBUTTON))
 			{
 				// 先擦掉上一次预览（再次画一次相同线段）
@@ -632,11 +563,35 @@ void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 							dc.SelectObject(oldPen);
 						}
 					}
+					for (auto& ell : Ellipses)
+					{
+						if (!ell.selected) continue;
+						int penStyle = ell.lineType ? PS_DASH : PS_SOLID;
+						LOGBRUSH logBrush = { BS_SOLID, ell.color, 0 };
+						CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, ell.lineWidth, &logBrush);
+						CPen* oldPen = dc.SelectObject(&pen);
+						CBrush* pNullBrush = CBrush::FromHandle((HBRUSH)GetStockObject(NULL_BRUSH));
+						CBrush* oldBrush = dc.SelectObject(pNullBrush);
+						DrawEllipseA(dc, ell.rect, ell.color, ell.lineWidth, ell.lineType, 4);
+						dc.SelectObject(oldBrush);
+						dc.SelectObject(oldPen);
+					}
+
+					for (auto& poly : Polygons)
+					{
+						if (!poly.visible || !poly.selected) continue;
+						int penStyle = poly.lineType ? PS_DASH : PS_SOLID;
+						LOGBRUSH logBrush = { BS_SOLID, poly.color, 0 };
+						CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, poly.lineWidth, &logBrush);
+						CPen* oldPen = dc.SelectObject(&pen);
+						DrawPolygonFM(dc, poly.points, poly.isfilled, poly.fillColor, false);
+						dc.SelectObject(oldPen);
+					}
 				}
 
 				// 计算平移偏移
-				double dx = point.x - lastPoint.x;
-				double dy = point.y - lastPoint.y;
+				int dx = point.x - lastPoint.x;
+				int dy = point.y - lastPoint.y;
 
 				// 临时平移选中线段
 				for (auto& line : Lines)
@@ -647,19 +602,57 @@ void CPaint3Dlg::OnMouseMove(UINT nFlags, CPoint point)
 						line.end = line.end + CPoint(dx, dy);
 					}
 				}
-
+				for (auto& ell : Ellipses)
+				{
+					if (ell.selected)
+					{
+						ell.rect.OffsetRect(dx, dy);
+					}
+				}
+				for (auto& poly : Polygons)
+				{
+					if (poly.selected)
+					{
+						for (auto& pt : poly.points)
+						{
+							pt = pt + CPoint(dx, dy);
+						}
+					}
+				}
 				// 绘制新的预览
 				for (auto& line : Lines)
 				{
-					if (line.selected)
-					{
-						int penStyle = line.lineType ? PS_DASH : PS_SOLID;
-						LOGBRUSH logBrush = { BS_SOLID, line.color, 0 };
-						CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, line.lineWidth, &logBrush);
-						CPen* oldPen = dc.SelectObject(&pen);
-						DrawLineA(line.start, line.end, dc, 0, line.color, line.lineWidth, line.lineType);
-						dc.SelectObject(oldPen);
-					}
+					if (!line.selected) continue;
+					int penStyle = line.lineType ? PS_DASH : PS_SOLID;
+					LOGBRUSH logBrush = { BS_SOLID, line.color, 0 };
+					CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, line.lineWidth, &logBrush);
+					CPen* oldPen = dc.SelectObject(&pen);
+					DrawLineA(line.start, line.end, dc, 0, line.color, line.lineWidth, line.lineType);
+					dc.SelectObject(oldPen);
+				}
+				for (auto& ell : Ellipses)
+				{
+					if (!ell.selected) continue;
+					int penStyle = ell.lineType ? PS_DASH : PS_SOLID;
+					LOGBRUSH logBrush = { BS_SOLID, ell.color, 0 };
+					CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, ell.lineWidth, &logBrush);
+					CPen* oldPen = dc.SelectObject(&pen);
+					CBrush* pNullBrush = CBrush::FromHandle((HBRUSH)GetStockObject(NULL_BRUSH));
+					CBrush* oldBrush = dc.SelectObject(pNullBrush);
+					DrawEllipseA(dc, ell.rect, ell.color, ell.lineWidth, ell.lineType, 4);
+					dc.SelectObject(oldBrush);
+					dc.SelectObject(oldPen);
+				}
+
+				for (auto& poly : Polygons)
+				{
+					if (!poly.visible || !poly.selected) continue;
+					int penStyle = poly.lineType ? PS_DASH : PS_SOLID;
+					LOGBRUSH logBrush = { BS_SOLID, poly.color, 0 };
+					CPen pen(penStyle | PS_GEOMETRIC | PS_ENDCAP_ROUND, poly.lineWidth, &logBrush);
+					CPen* oldPen = dc.SelectObject(&pen);
+					DrawPolygonFM(dc, poly.points, poly.isfilled, poly.fillColor, false);
+					dc.SelectObject(oldPen);
 				}
 				hasDrawSelected = true;
 			}
@@ -738,7 +731,7 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 			}
 			else
 			{
-				Lines.push_back({ ++idLine, startPoint, endPoint, LineWidth, LineType, LineColor, false, Algorithm, true});
+				Lines.push_back({ ++idLine, startPoint, endPoint, LineWidth, LineType, LineColor, false, Algorithm, true });
 				DrawLineA(startPoint, endPoint, dc, Algorithm, LineColor, LineWidth, LineType);
 			}
 		}
@@ -827,7 +820,7 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 				clipPolygon.push_back(point);
 			}
 		}
-		else if (Mode == 7) 
+		else if (Mode == 7)
 		{
 			if (Algorithm == 11)
 			{
@@ -839,12 +832,17 @@ void CPaint3Dlg::OnLButtonUp(UINT nFlags, CPoint point)
 					int dx = point.x - dragStart.x;
 					int dy = point.y - dragStart.y;
 
-					for (auto &line : Lines)
+					for (auto& line : Lines)
 					{
-						if (line.selected)
-						{
-							line.selected = false;
-						}
+						line.selected = false;
+					}
+					for (auto& ell : Ellipses)
+					{
+						ell.selected = false;
+					}
+					for (auto& poly : Polygons)
+					{
+						poly.selected = false;
 					}
 					hasDrawSelected = false;
 					Invalidate(1);
@@ -1019,7 +1017,6 @@ void CPaint3Dlg::OnEnChangeEdit1()
 		LineWidth = _ttoi(text); // 字符串转整数
 		LineWidth = max(1, min(LineWidth, 20)); // 限制范围在0到20
 	}
-		
 }
 
 void CPaint3Dlg::OnEnChangeEdit2()
@@ -1031,5 +1028,4 @@ void CPaint3Dlg::OnEnChangeEdit2()
 		arcAngleDeg = _ttoi(text);
 		arcAngleDeg = max(1, min(arcAngleDeg, 360)); // 限制范围在1到360
 	}
-		
 }
