@@ -1,10 +1,10 @@
 ﻿
 // Paint3Dlg.h: 头文件
 //
-
 #pragma once
 #include "std.h"
 #include "afxdialogex.h"
+#include <corecrt_math_defines.h>
 using namespace std;
 
 // CPaint3Dlg 对话框
@@ -189,6 +189,8 @@ public:
 	bool DefinedClipPoly = false; // 是否已经定义了多边形裁剪窗口
 	// 变换相关
 	bool hasDrawSelected;
+	bool hasDrawScaling;
+	bool hasDrawRotating;
 	bool IsPointNearLine(const CPoint& p, const LineObject& line);
 	bool IsPointNearEllipse(const CPoint& p, const EllipseObject& line);
 	//bool IsPointNearArc(const CPoint& p, const ArcObject& line);
@@ -197,5 +199,6 @@ public:
 	bool isScaling = false;
 	bool isRotating = false;
 	CPoint dragStart; // 拖拽起点
-	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
+	CPoint scaleStart; // 缩放起点
+	CPoint rotateStart; // 旋转起点
 };

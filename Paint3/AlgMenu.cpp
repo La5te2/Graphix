@@ -1,5 +1,4 @@
-#include "pch.h"
-#include <afxwin.h>       
+#include "pch.h"     
 #include "Paint3Dlg.h"    // 需要完整类型
 #include "AlgMenu.h"
 

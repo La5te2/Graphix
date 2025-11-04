@@ -1,5 +1,6 @@
 #pragma once
-
+#include "pch.h"
+#include "afxdialogex.h"
 // 只前置声明，避免头文件相互包含过重
 class CPaint3Dlg;
 

@@ -1,6 +1,5 @@
 #include"Paint3Dlg.h"
 #include "afxdialogex.h"
-#include <corecrt_math_defines.h>
 
 void CPaint3Dlg::DrawLineA(CPoint p1, CPoint p2, CDC& dc, int alg, COLORREF color, int lineWidth, int lineType)
 {
