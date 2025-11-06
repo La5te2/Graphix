@@ -45,7 +45,7 @@ void AlgMenu::RefreshAlgorithmListForMode(CPaint3Dlg& dlg)
         break;
 
     case 5: // FILL
-        AddAlgoItem(dlg, _T("Scanline Fill"), 9); // 先占位/待实现
+        AddAlgoItem(dlg, _T("Scanline Fill"), 20); // 先占位/待实现
         break;
 
     case 6: // CLIP 矩形/多边形裁剪窗口
@@ -58,6 +58,18 @@ void AlgMenu::RefreshAlgorithmListForMode(CPaint3Dlg& dlg)
         AddAlgoItem(dlg, _T("Scaling"), 12);
         AddAlgoItem(dlg, _T("Rotation"), 13);
         break;
+
+    case 8: // CONNECT
+        dlg.m_algorithm.EnableWindow(FALSE);
+        dlg.Algorithm = -1;
+        return;
+    case 9: // Bezier
+        AddAlgoItem(dlg, _T("de Casteljau"), 21); 
+        break;
+    case 10: // BSPLINE
+        AddAlgoItem(dlg, _T("B-Spline (de Boor)"), 22);
+        break;
+
     }
 
     // 设默认选中第一项并同步写回 Algorithm
