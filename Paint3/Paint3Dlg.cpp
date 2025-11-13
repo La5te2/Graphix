@@ -1432,8 +1432,8 @@ void CPaint3Dlg::OnRButtonDown(UINT nFlags, CPoint point)
 	}
 	else {
 		// 切回重心：实时计算选中集的平均重心
-		m_bUseCustomRefPoint = false;
-		m_refPoint = GetAverageCentroidOfSelection(); // 你已实现的函数
+			m_bUseCustomRefPoint = false;
+			m_refPoint = GetAverageCentroidOfSelection(); // 已实现的函数
 	}
 	Invalidate(FALSE); // 立刻刷新，把小点画出来/移走
 	CDialogEx::OnRButtonDown(nFlags, point);

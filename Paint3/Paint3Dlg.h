@@ -208,6 +208,7 @@ public:
 	bool hasDrawSelected;
 	bool hasDrawScaling;
 	bool hasDrawRotating;
+	std::vector<CPoint> RB;
 	bool IsPointNearLine(const CPoint& p, const LineObject& line);
 	bool IsPointNearEllipse(const CPoint& p, const EllipseObject& line);
 	bool IsPointNearArc(const CPoint& p, const ArcObject& arc); // 你在 .cpp 中实现了它，但在 .h 中缺失了
