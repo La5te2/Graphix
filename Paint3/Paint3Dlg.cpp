@@ -164,6 +164,7 @@ BEGIN_MESSAGE_MAP(CPaint3Dlg, CDialogEx)
 	ON_WM_KEYDOWN()
 	ON_EN_CHANGE(IDC_EDIT1, &CPaint3Dlg::OnEnChangeEdit1)
 	ON_EN_CHANGE(IDC_EDIT2, &CPaint3Dlg::OnEnChangeEdit2)
+	ON_BN_CLICKED(IDC_BUTTON3, &CPaint3Dlg::OnBnClickedButton3)
 END_MESSAGE_MAP()
 
 
@@ -645,7 +646,7 @@ bool CPaint3Dlg::IsPointNearArc(const CPoint& p, const ArcObject& arc)
 	// 右法线 nR = -nL
 	double nRx = -nLx, nRy = -nLy;
 
-	// 4) 由于方向不同，圆心在弦两侧之一。我们尝试两侧，选择与 arc.direction + phi 最匹配的那一个。
+	// 4) 由于方向不同，圆心在弦两侧之一；选择与 arc.direction + phi 最匹配的那一个。
 	auto pick_center = [&](double nx, double ny)->tuple<double, double, bool> {
 		double cx = mx + nx * h, cy = my + ny * h;  // 候选圆心
 		double angS = atan2(y1 - cy, x1 - cx);
@@ -1601,4 +1602,20 @@ int CPaint3Dlg::HitBezierCtrlPoint(const BezierObject& bz, const CPoint& mouse, 
 		if (dx * dx + dy * dy <= R2) return i;
 	}
 	return -1;
+}
+
+void CPaint3Dlg::OnBnClickedButton3()
+{
+	Invalidate(false);
+	Pens.clear();
+	Lines.clear();
+	Ellipses.clear();
+	Arcs.clear();
+	Polygons.clear();
+	CPolygons.clear();
+	isDefiningClipRect = false;
+	isDefiningClipPoly = false;
+	DefinedClipRect = false;
+	DefinedClipPoly = false;
+	currentBSplineCtrl.clear();
 }

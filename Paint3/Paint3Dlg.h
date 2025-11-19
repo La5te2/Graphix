@@ -208,7 +208,6 @@ public:
 	bool hasDrawSelected;
 	bool hasDrawScaling;
 	bool hasDrawRotating;
-	std::vector<CPoint> RB;
 	bool IsPointNearLine(const CPoint& p, const LineObject& line);
 	bool IsPointNearEllipse(const CPoint& p, const EllipseObject& line);
 	bool IsPointNearArc(const CPoint& p, const ArcObject& arc); // 你在 .cpp 中实现了它，但在 .h 中缺失了
@@ -216,9 +215,9 @@ public:
 	bool isDragging = false;
 	bool isScaling = false;
 	bool isRotating = false;
-	CPoint dragStart; // 拖拽起点 (你已经有了)
-	CPoint scaleStart; // 缩放起点 (你已经有了)
-	CPoint rotateStart; // 旋转起点 (你已经有了)
+	CPoint dragStart; // 拖拽起点
+	CPoint scaleStart; // 缩放起点
+	CPoint rotateStart; // 旋转起点
 	CPoint m_refPoint; // 变换参考点 (重心或自定义点)
 	bool m_bUseCustomRefPoint = false; // 是否使用自定义参考点
 
@@ -308,4 +307,5 @@ public:
 	int  bsplineDragIdx = -1;
 	int  defaultBSplineDegree = 3; // 需要的话允许外部改
 
+	afx_msg void OnBnClickedButton3();
 };
