@@ -1,0 +1,15 @@
+ninja_dyndep_version = 1.0
+build CMakeFiles\engine.dir\src\Main.cpp.obj: dyndep
+
+build CMakeFiles\engine.dir\src\App.cpp.obj: dyndep
+
+build CMakeFiles\engine.dir\src\Screen.cpp.obj: dyndep
+
+build CMakeFiles\engine.dir\src\Shape.cpp.obj: dyndep
+
+build CMakeFiles\engine.dir\src\Slider.cpp.obj: dyndep
+
+build CMakeFiles\engine.dir\src\Line.cpp.obj: dyndep
+
+build CMakeFiles\engine.dir\src\Shader.cpp.obj: dyndep
+

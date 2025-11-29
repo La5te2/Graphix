@@ -1,0 +1,14 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "CMakeFiles\\engine.dir\\src\\ToolBar.cpp.obj",
+            "outputs": [
+                "D:\\Programming\\School\\Projects\\Engine\\out\\build\\x64-Debug\\vc140.pdb",
+                "CMakeFiles\\engine.dir\\src\\ToolBar.cpp.obj.ddi"
+            ],
+            "requires": []
+        }
+    ]
+}
