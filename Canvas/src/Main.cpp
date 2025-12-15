@@ -1,10 +1,16 @@
 #include "App.h"
 #include <cstdlib>
+#include <cstdio>
+#include <iostream>
+#include <vector>
+#include <array>
+#include <queue>
+#include <set>
+#include <map>
 using namespace std;
+//AnimationConfig& config = app.getAnimationConfig();
 int main() {
     App app;
-    //system("chcp 65001");
-    //AnimationConfig& config = app.getAnimationConfig();
     app.run();
     return 0;
 }

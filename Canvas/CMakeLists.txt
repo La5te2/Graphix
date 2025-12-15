@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 4.2.0)
-
-project(engine 
+project(canvas 
     VERSION 0.1.0
-    DESCRIPTION "2DEngine-0.1.0"
+    DESCRIPTION "Canvas-0.1.0"
     LANGUAGES CXX
 )
 set(CMAKE_CXX_STANDARD 20)
@@ -17,6 +16,7 @@ add_executable(${PROJECT_NAME}
     src/Slider.cpp
     src/Line.cpp
     src/Shader.cpp
+    
 )
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
