@@ -9,6 +9,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/ext/matrix_clip_space.hpp>
+#include <GLFW/glfw3.h>
 struct AnimationConfig {
     float rotationSpeed = 1.0f;        // 旋转速度（弧度/秒）
     float maxRotationSpeed = 5.0f;     // 最大旋转速度
