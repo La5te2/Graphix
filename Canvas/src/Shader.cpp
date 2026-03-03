@@ -47,7 +47,7 @@ bool Shader::loadFromFile(const std::string& vertexPath, const std::string& frag
         vertexFile.close();
     }
     else {
-        std::cout << "Fail to open shader file: " << vertexPath << std::endl;
+        std::cout << "Fail to open vertex shader file: " << vertexPath << std::endl;
         return false;
     }
 
@@ -61,7 +61,7 @@ bool Shader::loadFromFile(const std::string& vertexPath, const std::string& frag
         fragmentFile.close();
     }
     else {
-        std::cout << "错误: 无法打开片段着色器文件: " << fragmentPath << std::endl;
+        std::cout << "Fail to open fragment shader file: " << fragmentPath << std::endl;
         return false;
     }
 
